@@ -1,0 +1,85 @@
+nl,act1,act2,act3,slot1,slot2,slot3
+"Hello , welcome to the Cambridge restaurant system? You can ask for restaurants by area , price range or food type . How may I help you?",welcomemsg,,,,,
+What kind of $food$ would you like?,request,,,food,,
+Sorry there is no $food$ restaurant in the $pricerange$ price range,canthelp,canthelp,,pricerange,food,
+$name$ is a great restaurant serving $food$ food and it is in the $pricerange$ price range,offer,inform,inform,name,food,pricerange
+Can I help you with anything else?,reqmore,,,,,
+"Sure , $name$ is on $addr$",offer,inform,,name,addr,
+The phone number of $name$ is $phone$ .,offer,inform,,name,phone,
+What $area$ do you have in mind?,request,,,area,,
+"Would you like something in the cheap , moderate , or expensive $pricerange$?",request,,,pricerange,,
+$name$ is a nice place in the $area$ of town and the prices are $pricerange$,offer,inform,inform,name,pricerange,area
+$name$ is in the $pricerange$ price range,offer,inform,,name,pricerange,
+"Let me confirm , You are looking for a restaurant in the $pricerange$ price range right?",expl-conf,,,pricerange,,
+I'm sorry but there is no restaurant serving $food$ food,canthelp,,,food,,
+Sorry would you like $food$ or $food$ food?,select,select,,food,food,
+$name$ serves $food$ food,offer,inform,,name,food,
+$name$ is a nice restaurant in the $area$ of town in the $pricerange$ price range,offer,inform,inform,name,pricerange,area
+$name$ is a nice place in the $area$ of town serving tasty $food$ food,offer,inform,inform,name,food,area
+The phone number of $name$ is $phone$ and it is on $addr$ .,offer,inform,inform,name,phone,addr
+$name$ is a nice restaurant in the $area$ of town serving $food$ food,offer,inform,inform,name,food,area
+I'm sorry but there is no restaurant serving $pricerange$ $food$ food,canthelp,canthelp,,food,pricerange,
+Did you say you are looking for a restaurant in the $area$ of town?,expl-conf,,,area,,
+I'm sorry but there is no $food$ restaurant in the $area$ of town,canthelp,canthelp,,food,area,
+$name$ serves $food$ food in the $pricerange$ price range,offer,inform,inform,name,food,pricerange
+Sorry there is no $pricerange$ restaurant in the $area$ of town serving $food$ food,canthelp,canthelp,canthelp,area,pricerange,food
+$name$ is a nice restaurant in the $area$ of town serving $food$ food,offer,inform,inform,name,food,pricerange
+$name$ is a great restaurant,offer,,,name,,
+I am sorry but there is no $food$ restaurant that matches your request,canthelp,,,food,,
+Sorry there is no $food$ restaurant in the $area$ of town,canthelp,canthelp,,area,food,
+You are looking for a $food$ restaurant right?,expl-conf,,,food,,
+The post code of $name$ is $postcode$,offer,inform,,name,postcode,
+"The phone number of $name$ is $phone$ and its postcode is $postcode$,",offer,inform,inform,name,phone,postcode
+$name$ is a nice place in the $area$ of town,offer,inform,,name,area,
+You are looking for a restaurant serving $food$ kind of food right?,expl-conf,,,food,,
+$name$ serves $food$ food .,offer,inform,,name,food,
+$name$ is in the $area$ part of town .,offer,inform,,name,area,
+The price range at $name$ is $pricerange$ .,offer,inform,,name,pricerange,
+"Sure , $name$ is on St. Michael's Church Trinity Street City Centre",offer,inform,,name,addr,
+I am sorry but there is no other $food$ restaurant in the $pricerange$ price range,canthelp,canthelp,,food,pricerange,
+Sorry would you like something in the $pricerange$ price range or in the $pricerange$ price range,select,select,,pricerange,pricerange,
+"Sorry, I can't hear you",canthelp,,,area,,
+Sorry would you like $food$ food or $food$,select,select,,food,food,
+"Let me confirm , You are looking for a restaurant and $pricerange$ about the price range right?",expl-conf,,,pricerange,,
+I'm sorry but there is no $food$ restaurant in the $area$ of town,canthelp,canthelp,,area,food,
+"Ok , a restaurant in $area$ part of town is that right?",expl-conf,,,area,,
+I am sorry but there is no other $food$ restaurant in the $area$ of town,canthelp,canthelp,,food,area,
+"Hello , welcome to the Cambridge restaurant system? You can ask for restaurants by area , price range or food type .",welcomemsg,,,,,
+Sorry but there is no other restaurant in the $pricerange$ price range and the $area$ of town,canthelp,canthelp,,area,pricerange,
+$name$ is a great restaurant serving $pricerange$ $food$ food in the $area$ of town .,offer,inform,inform,name,food,pricerange
+Sorry but there is no other $food$ restaurant in the $pricerange$ price range and the $area$ of town,canthelp,canthelp,canthelp,food,pricerange,area
+Sorry would you like something in the $pricerange$ price range or $pricerange$,select,select,,pricerange,pricerange,
+Sorry would you like the $area$ of town or $area$,select,select,,area,area,
+"The phone number of $name$ is $phone$ and its postcode is $postcode$,",offer,inform,inform,name,postcode,phone
+I am sorry but there is no other $food$ restaurant that matches your request,canthelp,,,food,,
+Sorry would you like something in the $area$ or in the $area$,select,select,,area,area,
+"The phone number of $name$ is $phone$ and its postcode is $postcode$,",offer,inform,inform,name,phone,addr
+I'm sorry but there is no $food$ restaurant in the $area$ of town and the $pricerange$ price range,canthelp,canthelp,canthelp,pricerange,area,food
+There are restaurants serving $food$ in the $pricerange$ price range . What $area$ would you like?,request,inform,inform,area,food,pricerange
+There are restaurants serving $food$ food . What $area$ do you want?,request,inform,,area,food,
+"$name$ is on $addr$ , $postcode$",offer,inform,inform,name,postcode,addr
+"$name$ is on $addr$ , $postcode$",offer,inform,inform,name,addr,postcode
+pizza express Fen Ditton is in the $pricerange$ price range,offer,inform,,name,pricerange,
+I'm sorry but there is no restaurant serving $pricerange$ $food$ food,canthelp,canthelp,,pricerange,food,
+Sorry but there is no other restaurant in the $pricerange$ price range and the $area$ of town,canthelp,canthelp,,pricerange,area,
+"$name$ is in the $pricerange$ price range , and their post code is $postcode$",offer,inform,inform,name,pricerange,postcode
+The phone number of $name$ is $phone$ and it is in the $pricerange$ price range .,offer,inform,inform,name,phone,pricerange
+pizza express Fen Ditton is a nice restaurant in the $area$ of town in the $pricerange$ price range,offer,inform,inform,name,pricerange,area
+The price range at pizza express Fen Ditton is $pricerange$ .,offer,inform,,name,pricerange,
+pizza express Fen Ditton is in the $area$ part of town .,offer,inform,,name,area,
+Sorry there is no $pricerange$ restaurant in the $area$ of town serving $area$ american food,canthelp,canthelp,,area,pricerange,
+Sorry there is no $pricerange$ restaurant in the $area$ of town serving $area$ american food,canthelp,canthelp,canthelp,area,pricerange,area
+The phone number of $name$ is $phone$ and it is on St. Michael's Church Trinity Street City Centre .,offer,inform,inform,name,phone,addr
+"$name$ is on $addr$ , and it is in the $pricerange$ price range",offer,inform,inform,name,pricerange,addr
+Sorry there is no eritrean restaurant in the $area$ of town,canthelp,,,area,,
+The phone number of $name$ is dontcare .,offer,inform,,name,phone,
+The phone number of $name$ is $phone$ and it is in the $area$ part of town .,offer,inform,inform,name,phone,area
+I'm sorry but there is no $food$ restaurant in the $area$ of town and the $pricerange$ price range,canthelp,canthelp,canthelp,area,pricerange,food
+"The phone number of $name$ is $phone$ and its postcode is $postcode$,",offer,inform,inform,name,addr,phone
+"$name$ is on St. Michael's Church Trinity Street City Centre , $postcode$",offer,inform,inform,name,addr,postcode
+There are restaurants in the $pricerange$ price range and the $area$ of town . What type of $food$ would you like?,request,inform,inform,food,pricerange,area
+There are restaurants . That $area$ would you like?,request,,,area,,
+Sorry but there is no other $food$ restaurant in the $pricerange$ price range and the $area$ of town,canthelp,canthelp,canthelp,area,pricerange,food
+"Sure , $name$ is on Doubletree by Hilton Cambridge Granta Place Mill Lane",offer,inform,,name,addr,
+I'm sorry but there is no $area$ american restaurant in the $area$ of town,canthelp,canthelp,,area,area,
+"$name$ is on $addr$ , and it is in the $pricerange$ pric",offer,inform,inform,name,pricerange,addr

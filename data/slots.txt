@@ -1,0 +1,8 @@
+addr
+area
+food
+phone
+pricerange
+postcode
+signature
+name
