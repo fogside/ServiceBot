@@ -9,7 +9,12 @@ def read_json(path):
     return json.load(open(path, 'r'))
 
 class NLUDataGenerator:
-    def __init__(self, path_to_template, path_to_dict, path_to_slot, seq_len=64, batch_size=32, time_major = True):
+    def __init__(self, path_to_template, path_to_dict, path_to_slot, ref_dict = None, seq_len=64, batch_size=32, time_major = True):
+
+        """
+        ref_dict -- it's dict that we want to complement in this particular run        
+
+        """
 
         self.time_major = time_major
         self.batch_size = batch_size
@@ -36,15 +41,28 @@ class NLUDataGenerator:
                 for filling in self.dict[type_][tag]:
                     for w in filling.split():  # Конечно, это вызывает вопросы, т.к имена будут явно разнесены(
                         self.vocab.add(w)
+      
+        if ref_dict is not None:
+            diff = self.vocab - set(ref_dict.keys())
+            print("len(diff): ", len(diff))
+            self.vocab = copy.deepcopy(ref_dict) # add words to current dict
+            tmp = dict(zip(diff, range(len(self.vocab), len(diff) + len(self.vocab))))
+            print("tmp len: ", len(tmp))
+            print("before: ", len(self.vocab))
+            self.vocab.update(tmp)
+            print("fin: ", len(self.vocab))
+        else:
+            self.vocab = dict(zip(self.vocab, range(1, len(self.vocab) + 1)))
+       
+        
+        self.slots_encode = dict(zip(self.slots_encode, range(2, len(self.slots_encode) + 2))) # + 'O'(other) + PAD(?)
+        self.acts_encode = dict(zip(self.acts_encode, range(2, len(self.acts_encode) + 2))) # + 'O'(other) + PAD(?)
 
-        self.vocab = dict(zip(self.vocab, range(3, len(self.vocab) + 3))) # + 'O' + PAD + EOF
-        self.slots_encode = dict(zip(self.slots_encode, range(3, len(self.slots_encode) + 3))) # + 'O' + PAD + EOF
-        self.acts_encode = dict(zip(self.acts_encode, range(3, len(self.acts_encode) + 3))) # + 'O' + PAD + EOF
-
-        for dic in [self.vocab, self.slots_encode, self.acts_encode]:
+        self.vocab["PAD"] = 0
+        
+        for dic in [self.slots_encode, self.acts_encode]:
             dic["PAD"] = 0
-            dic["EOF"] = 1
-            dic["O"] = 2
+            dic["O"] = 1
 
         self.inverse_vocab = {val: key for key, val in self.vocab.items()}
         self.inverse_slots = {val: key for key, val in self.slots_encode.items()}
@@ -170,6 +188,3 @@ class NLUDataGenerator:
 
         """
         return [self.inverse_acts[i] for i in seq if self.inverse_acts[i] != 'PAD']
-
-
-
