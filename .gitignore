@@ -1,3 +1,6 @@
 *.pyc
 .idea/
 .DS_Store
+data/another_data
+bot/test.py
+bot/settings/custom_settings.py
