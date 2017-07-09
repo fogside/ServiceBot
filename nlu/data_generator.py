@@ -83,7 +83,7 @@ class NLUDataGenerator:
 
         # special case:
         if len(acts) == 1:
-            if (acts[0] in self.spec_no_slots) or \
+            if (('$' not in template) and (acts[0] in self.spec_no_slots)) or \
                     (('$' not in template) and (acts[0] in self.spec_with_slots)):
                 nl_len = len(template.split())
                 bio_slots.extend(['B-' + acts[0]] * nl_len)  # slots have the same value as act;
