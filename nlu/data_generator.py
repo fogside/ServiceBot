@@ -9,16 +9,16 @@ def read_json(path):
     return json.load(open(path, 'r'))
 
 class NLUDataGenerator:
-    def __init__(self, path_to_template, path_to_dict, path_to_slot, ref_dict = None, seq_len=64, batch_size=32, time_major = True):
+    def __init__(self, path_to_template, path_to_dict, path_to_slot, ref_dict = None, batch_size=32, time_major = True, digitize = True, fs_model = None):
 
         """
         ref_dict -- it's dict that we want to complement in this particular run        
 
         """
-
+        self.digitize = digitize
+        self.fs_model = fs_model
         self.time_major = time_major
         self.batch_size = batch_size
-        self.seq_len = seq_len
         self.dict = read_json(path_to_dict)  # for random choices and slot filling;
         self.slots = list(np.array(pd.read_csv(path_to_slot, sep='\n')).reshape(-1))
         self.spec_no_slots = ['bye', 'hello', 'reqalts', 'doncare']  # all template is marked always;
@@ -147,27 +147,50 @@ class NLUDataGenerator:
 
                             input_.append(f)
             filled_batch.append((copy.deepcopy(input_), copy.deepcopy(target_slot), copy.deepcopy(target_acts)))
-        return self.digitaze(filled_batch)
-
-    def digitaze(self, batch):
+        
+        return self.digitize_batch(filled_batch)
+            
+    def digitize_batch(self, batch):
 
         max_size = max([len(item[0]) for item in batch])
         targets_slots = np.zeros(shape=[self.batch_size, max_size], dtype=np.int32)  # == PAD
         targets_acts = np.zeros(shape=[self.batch_size, max_size], dtype=np.int32)  # == PAD
-        dseqs = np.zeros(shape=[self.batch_size, max_size], dtype=np.int32)  # == PAD
         actual_lengths = []
+        
+        if self.digitize:
+            dseqs = np.zeros(shape=[self.batch_size, max_size], dtype=np.int32)  # == PAD
+            for i, row in enumerate(batch):
+                actual_lengths.append(len(row[0]))
+                for j, elements in enumerate(zip(row[0], row[1], row[2])):
+                    dseqs[i, j] = self.vocab[elements[0]]
+                    targets_slots[i, j] = self.slots_encode[elements[1]]
+                    targets_acts[i, j] = self.acts_encode[elements[2]]
 
-        for i, row in enumerate(batch):
-            actual_lengths.append(len(row[0]))
-            for j, elements in enumerate(zip(row[0], row[1], row[2])):
-                dseqs[i, j] = self.vocab[elements[0]]
-                targets_slots[i, j] = self.slots_encode[elements[1]]
-                targets_acts[i, j] = self.acts_encode[elements[2]]
-
-        if self.time_major:
-            dseqs = dseqs.swapaxes(0,1)
+            if self.time_major:
+                dseqs = dseqs.swapaxes(0,1)
+        else:
+            dseqs = [b[0] for b in batch]
+            for i, row in enumerate(batch):
+                actual_lengths.append(len(row[0]))
+                for j, elements in enumerate(zip(row[0], row[1], row[2])):
+                    targets_slots[i, j] = self.slots_encode[elements[1]]
+                    targets_acts[i, j] = self.acts_encode[elements[2]]
+            
         return dseqs, targets_slots, targets_acts, actual_lengths
-
+    
+    def vectorize(self, dseqs, max_size, embedd_size):
+        
+        """
+        Expected array of arrays like: 
+        ['i', 'need', 'a', 'indonesian', 'restaurant', 'that', 'is', 'cheap', 'priced']
+        
+        """
+        dseqs_mtx = np.zeros(shape=[self.batch_size, max_size, embedd_size], dtype=np.float32)
+        for i, sent in enumerate(dseqs):
+            for j, word in enumerate(sent):
+                dseqs_mtx[i,j] = self.fs_model[word]
+        return dseqs_mtx
+    
     def decode_sentence(self, seq):
         """
         Expected array of digits
