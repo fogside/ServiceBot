@@ -1,13 +1,12 @@
-from telegram.ext import Updater, CommandHandler, MessageHandler, Filters
-import traceback
-
-
 class UserSimulator:
     def __init__(self, content_manager, nlg):
         self.nlg = nlg
         self.content_manager = content_manager
 
-    def next(self, agent_actions):
+    def inform_user(self, agent_actions):
+        pass
+
+    def next(self):
         pass
 
     def initialize_episode(self):
@@ -21,48 +20,51 @@ class EchoUserSimulator(UserSimulator):
     def __init__(self, content_manager, nlg):
         super().__init__(content_manager, nlg)
 
-    def next(self, agent_actions):
+    def inform_user(self, agent_actions):
         print(self.agent_message(agent_actions))
+
+    def next(self):
         answer = 'hello'
         print(answer)
         return None, answer
 
 
 class ConsoleUserSimulator(UserSimulator):
-    def next(self, agent_actions):
+    def inform_user(self, agent_actions):
         print(self.agent_message(agent_actions))
+
+    def next(self):
         answer = input()
         return None, answer
 
 
 class TelegramUserSimulator(UserSimulator):
-    def __init__(self, content_manager, nlg, api_key):
+    def __init__(self, content_manager, nlg, update):
         super().__init__(content_manager, nlg)
-        self.api_key = api_key
+        self.update = update
+        self.message = None
 
-        self.updater = Updater(api_key)
+    def inform_user(self, agent_actions):
+        self.update.message.reply_text(self.agent_message(agent_actions))
 
-        dp = self.updater.dispatcher
-        dp.add_error_handler(self.error)
+    def next(self):
+        return None, self.message
 
-        self.updater.start_polling()
+    def new_message(self, message):
+        self.message = message
 
-    def set_newchat_handler(self, handler):
-        dp = self.updater.dispatcher
-        dp.add_handler(CommandHandler("start", handler))
 
-    def set_message_handler(self, handler):
-        dp = self.updater.dispatcher
-        dp.add_handler(MessageHandler(Filters.text, handler))
+class SupervisedUserSimulator(UserSimulator):
+    def __init__(self, content_manager, nlg, print_dialog=True):
+        super().__init__(content_manager, nlg)
+        self.print_dialog = print_dialog
 
-    @staticmethod
-    def from_settings(settings):
-        return TelegramUserSimulator(settings.TELEGRAM_BOT_API_KEY)
+    def initialize_episode(self):
+        self.goal = self.content_manager.random_goal()
 
-    def error(bot, update, error):
-        print(traceback.format_exc())
+    def inform_user(self, agent_actions):
+        if self.print_dialog:
+            print(self.agent_message(agent_actions))
 
-    def next(self, agent_message):
-        print(agent_message)
-        answer = input()
-        return answer
+    def next(self):
+        pass

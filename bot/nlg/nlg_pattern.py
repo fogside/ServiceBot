@@ -21,6 +21,9 @@ class NlgPattern:
             ['{} is in the {} part of town', [['inform', 'name'], ['inform', 'area']]],
             ['The price range at {} is {}', [['inform', 'name'], ['inform', 'pricerange']]],
             ['What part of town do you have in mind?', [['request', 'area']]],
+            ["I'm sorry but there is no restaurant serving {} food", [['canthelp', 'food']]],
+            ["I'm sorry but there is no {} restaurant in the {} of town", [['canthelp', 'food'], ['canthelp', 'area']]],
+            ["Sorry there is no {} restaurant in the {} of town serving $area$ american {}", [['canthelp', 'pricerange'], ['canthelp', 'area'], ['canthelp', 'food'] ]],
         ]
 
         self.patterns_indexes = dict()
@@ -42,4 +45,4 @@ class NlgPattern:
                         format_args.append(agent_slot_value)
                     break
 
-        return pattern.format(format_args)
+        return pattern.format(*format_args)
