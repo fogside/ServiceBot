@@ -65,11 +65,11 @@ class TelegramUserSimulator(UserSimulator):
 
 
 class SupervisedUserSimulator(UserSimulator):
-    def __init__(self, content_manager, nlg, model_path, binarizers_path, print_dialog=True):
+    def __init__(self, content_manager, nlg, model_path, binarizers, print_dialog=True):
         super().__init__(content_manager, nlg)
         self.print_dialog = print_dialog
         self.model = pickle.load(open(model_path, 'rb'))
-        self.binarizers = pickle.load(open(binarizers_path, 'rb'))
+        self.binarizers = binarizers
 
     def initialize_episode(self):
         self.goal = self.content_manager.random_goal()

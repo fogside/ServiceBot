@@ -9,11 +9,19 @@ class Agent:
     def next(self):
         pass
 
-    def _update_state_agent(self, agent_actions, nl=None):
+    def update_state_agent(self, agent_actions, nl=None):
         """
         :param agent_actions: list of triples: (agent action, slot_name, slot_value)
         :param nl: Natural language string from agent
         """
+
+        self.history.append({
+            'agent_action': agent_actions,
+            #'agent_state': deepcopy(self.state),
+            'user_action': None,
+            'agent_nl': nl,
+            'user_nl': None
+        })
 
         for action, slot_name, slot_value in agent_actions:
             if action == 'request':
@@ -22,13 +30,6 @@ class Agent:
                 self.state['proposed_slots'][slot_name] = [slot_value, set()]
                 if slot_name in self.request_slots:
                     self.request_slots.remove(slot_name)
-
-        self.history.append({
-            'agent_action': agent_actions,
-            'user_action': None,
-            'agent_nl': nl,
-            'user_nl': None
-        })
 
     def initialize_episode(self):
         """ Initialize a new episode (dialog), flush the current state and tracked slots """
@@ -39,7 +40,6 @@ class Agent:
             'agent_request_slots': [],
         }
         self.history = []
-
 
     def update_state_user(self, user_actions, nl=None):
         """
@@ -79,6 +79,7 @@ class Agent:
                 if slot_for_reqalts is not None and slot_for_reqalts in self.state['proposed_slots']:
                     self.state['proposed_slots'][slot_for_reqalts][1].add(slot_value_for_reqalts)
 
+
     def was_user_action_last_turn(self, user_action):
         if len(self.history)<2:
             return False
@@ -87,6 +88,10 @@ class Agent:
                 return True
 
         return False
+
+    @property
+    def turn_count(self):
+        return len(self.history)
 
     @property
     def slot_restrictions(self):
@@ -122,7 +127,7 @@ class RuleAgent(Agent):
         super().__init__(content_manager)
         self.required_slots = ['food', 'area', 'pricerange']
 
-    def _next(self):
+    def next(self):
         if self.turn_count == 0:
             return [['welcomemsg', None, None]]
 
@@ -138,10 +143,9 @@ class RuleAgent(Agent):
 
             variants = self.content_manager.available_results({'food': self.inform_slots['food'], 'area': self.inform_slots['area']}, self.slot_restrictions)
             if len(variants) == 0:
-                return [['canthelp', 'food', self.inform_slots['food']], ['canthelp', 'area', self.inform_slots['area']]]
+                return [['canthelp', 'area', self.inform_slots['area']]]
 
-            return [['canthelp', 'food', self.inform_slots['food']],
-                    ['canthelp', 'area', self.inform_slots['area']], ['canthelp', 'pricerange',self.inform_slots['pricerange']]]
+            return [['canthelp', 'pricerange',self.inform_slots['pricerange']]]
 
         valid_variant = variants[0]
         if 'name' not in self.state['proposed_slots']:
@@ -179,12 +183,4 @@ class RuleAgent(Agent):
             ['reqmore', None, None]
         ]
 
-    def next(self):
-        actions = self._next()
-        self._update_state_agent(actions)
-        return actions
-
-    @property
-    def turn_count(self):
-        return len(self.history)
 

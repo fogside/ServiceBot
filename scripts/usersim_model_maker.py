@@ -20,6 +20,8 @@ def usersim_binarizers():
     user_act_all = {'empty'}
     user_request_slots = {'empty'}
     user_constraint_slots = {'empty'}
+    agent_act_full = set()
+
     for label_path in glob.glob('../data/dstc2_traindev/**/label.json', recursive=True):
         label = json.load(open(label_path))
         log = json.load(open(label_path.replace('label', 'log')))
@@ -32,12 +34,25 @@ def usersim_binarizers():
         for i in range(len(log_turns)):
             agent_acts = log_turns[i]['output']['dialog-acts']
             user_acts = label_turns[i]['semantics']['json']
+
+            turn_act_slots = []
             for act in agent_acts:
                 agent_act.add(act['act'])
                 # if act['act']=='offer':
                 # continue
                 slot_index = 1 if act['act']=='request' else 0
-                agent_act_slots.add(act['act'] + '_' + act['slots'][0][slot_index] if len(act['slots']) > 0 else act['act'])
+                act_slot = act['act'] + '_' + act['slots'][0][slot_index] if len(act['slots']) > 0 else act['act']
+                agent_act_slots.add(act_slot)
+                turn_act_slots.append(act_slot)
+            turn_act_slots = sorted(turn_act_slots)
+            if len(turn_act_slots)>3 and 'inform_pricerange' in turn_act_slots:
+                turn_act_slots.remove('inform_pricerange')
+
+            turn_act_slots_str = '__'.join(turn_act_slots)
+            if 'inform_name__inform_postcode__inform_pricerange' in turn_act_slots_str:
+                print('{}, {}'.format(log_turns[i]['output']['transcript'], turn_act_slots))
+
+            agent_act_full.add(turn_act_slots_str)
 
             user_act_all_key = []
             for act in user_acts:
@@ -63,6 +78,11 @@ def usersim_binarizers():
         for c in requests:
             user_request_slots.add(c)
 
+    act_to_remove = ['', 'inform_name', 'inform_area__inform_name__inform_phone__inform_postcode']
+    for act in act_to_remove:
+        if act in agent_act_full:
+            agent_act_full.remove(act)
+
     result['agent_act'] = agent_act
     result['user_act'] = user_act
     result['agent_act_slots'] = agent_act_slots
@@ -76,6 +96,8 @@ def usersim_binarizers():
         lb.fit(list(value))
         result[key] = lb
 
+    agent_act_full = sorted(list(agent_act_full))
+    result['agent_act_full'] = {a: i for i, a in enumerate(agent_act_full)}
     pickle.dump(result, open('supervised_user_simulator_binarizers.p', 'wb'))
 
 
@@ -85,37 +107,37 @@ def create_features_for_turn(binarizers, goal, log_turns, label_turns, i, state)
     # What user/agent did in the last N turns
     for j in range(4):
         index = i - j
-        agent_acts_for_binary = []
-        agent_acts_slots_for_binary = []
+        agent_acts = []
+        agent_acts_slots = []
 
         agent_acts_history = log_turns[index]['output']['dialog-acts'] if index >= 0 else []
         if len(agent_acts_history) == 0:
-            agent_acts_for_binary.append('empty')
-            agent_acts_slots_for_binary.append('empty')
+            agent_acts.append('empty')
+            agent_acts_slots.append('empty')
         else:
             for act in agent_acts_history:
-                agent_acts_for_binary.append(act['act'])
+                agent_acts.append(act['act'])
                 slot_index = 1 if act['act'] == 'request' else 0
-                agent_acts_slots_for_binary.append(act['act'] + ('_' + act['slots'][0][slot_index] if len(act['slots']) > 0 else ''))
+                agent_acts_slots.append(act['act'] + ('_' + act['slots'][0][slot_index] if len(act['slots']) > 0 else ''))
 
-        features.extend(np.max(binarizers['agent_act'].transform(agent_acts_for_binary), axis=0))
-        features.extend(np.max(binarizers['agent_act_slots'].transform(agent_acts_slots_for_binary), axis=0))
+        features.extend(np.max(binarizers['agent_act'].transform(agent_acts), axis=0))
+        features.extend(np.max(binarizers['agent_act_slots'].transform(agent_acts_slots), axis=0))
 
         if j > 0:
-            user_acts_for_binary = []
-            user_acts_slots_for_binary = []
+            user_acts = []
+            user_acts_slots = []
 
             user_acts_history = label_turns[index]['semantics']['json'] if index > 0 else []
             if len(user_acts_history) == 0:
-                user_acts_for_binary.append('empty')
-                user_acts_slots_for_binary.append('empty')
+                user_acts.append('empty')
+                user_acts_slots.append('empty')
             else:
                 for act in user_acts_history:
-                    user_acts_for_binary.append(act['act'])
-                    user_acts_slots_for_binary.append(act['act'] + ('_' + act['slots'][0][0] if len(act['slots']) > 0 else ''))
+                    user_acts.append(act['act'])
+                    user_acts_slots.append(act['act'] + ('_' + act['slots'][0][0] if len(act['slots']) > 0 else ''))
 
-            features.extend(np.max(binarizers['user_act'].transform(user_acts_for_binary), axis=0))
-            features.extend(np.max(binarizers['user_act_slots'].transform(user_acts_slots_for_binary), axis=0))
+            features.extend(np.max(binarizers['user_act'].transform(user_acts), axis=0))
+            features.extend(np.max(binarizers['user_act_slots'].transform(user_acts_slots), axis=0))
 
     # User goals
     constraints = goal['constraints']
@@ -310,7 +332,7 @@ def create_goals_file():
 
 
 
-#usersim_binarizers()
+usersim_binarizers()
 #process_all_dialogs()
 #train()
 
@@ -321,6 +343,6 @@ def create_goals_file():
 #predict_for_dialog('..\data\dstc2_traindev\data\Mar13_S1A1\\voip-e0035cc31b-20130323_211354\\label.json')
 #predict_for_dialog('..\data\dstc2_traindev\data\Mar13_S0A0\\voip-ad40cf5489-20130325_181825\\label.json')
 #predict_for_dialog('..\data\dstc2_traindev\data\Mar13_S1A1\\voip-e54437a6f0-20130325_133942\\label.json')
-predict_for_dialog('..\data\dstc2_traindev\data\Mar13_S0A1\\voip-597cfafdee-20130328_231524\\label.json')# Empty первым действием у юзера
+#predict_for_dialog('..\data\dstc2_traindev\data\Mar13_S0A1\\voip-597cfafdee-20130328_231524\\label.json')# Empty первым действием у юзера
 
 

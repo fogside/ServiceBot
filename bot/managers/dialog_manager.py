@@ -26,6 +26,8 @@ class DialogManager:
 
     def agent_action(self):
         self.agent_actions = self.agent.next()
+        self.agent.update_state_agent(self.agent_actions)
+
         self.user.inform_user(self.agent_actions)
 
     def user_action(self):
