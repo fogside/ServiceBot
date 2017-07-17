@@ -19,13 +19,13 @@ class Agent:
             if action == 'request':
                 self.state['agent_request_slots'].append(slot_name)
             elif action=='inform':
-                self.state['proposed_slots'][slot_name] = [slot_value, False, False]
+                self.state['proposed_slots'][slot_name] = [slot_value, set()]
+                if slot_name in self.request_slots:
+                    self.request_slots.remove(slot_name)
 
         self.history.append({
-            'state_agent': deepcopy(self.state),
             'agent_action': agent_actions,
             'user_action': None,
-            'state_user': None,
             'agent_nl': nl,
             'user_nl': None
         })
@@ -35,9 +35,11 @@ class Agent:
         self.state = {
             'inform_slots': dict(),
             'request_slots': set(),
-            'proposed_slots': dict(),  # Значение: [значение слота, был ли Negate, был ли ReqAlts]
+            'proposed_slots': dict(),  # Значение: [значение слота, множество Negate + ReqAlts]
             'agent_request_slots': [],
         }
+        self.history = []
+
 
     def update_state_user(self, user_actions, nl=None):
         """
@@ -46,7 +48,6 @@ class Agent:
         """
 
         self.history[-1]['user_action'] = user_actions
-        self.history[-1]['state_user'] = deepcopy(self.state)
         self.history[-1]['user_nl'] = nl
 
         # updating state
@@ -58,14 +59,55 @@ class Agent:
                     self.inform_slots[slot] = 'dontcare'
 
                 self.state['agent_request_slots'] = []
-    
+            elif action=='request':
+                self.request_slots.add(slot_name)
+            elif action=='reqalts':
+                slot_for_reqalts = None
+                slot_value_for_reqalts = None
+                for history in reversed(self.history):
+                    if history['agent_action'] is None:
+                        continue
+
+                    for action, slot_name, slot_value in history['agent_action']:
+                        if action=='inform':
+                            slot_for_reqalts = slot_name
+                            slot_value_for_reqalts = slot_value
+                            break
+                    if slot_for_reqalts is not None:
+                        break
+
+                if slot_for_reqalts is not None and slot_for_reqalts in self.state['proposed_slots']:
+                    self.state['proposed_slots'][slot_for_reqalts][1].add(slot_value_for_reqalts)
+
+    def was_user_action_last_turn(self, user_action):
+        if len(self.history)<2:
+            return False
+        for action, slot_name, slot_value in self.history[-2]['user_action']:
+            if action== user_action:
+                return True
+
+        return False
+
+    @property
+    def slot_restrictions(self):
+        return {key:value[1] for key,value in self.proposed_slots.items() if len(value[1])>0}
+
+    @property
+    def request_slots(self):
+        return self.state['request_slots']
+
+    @property
+    def proposed_slots(self):
+        return self.state['proposed_slots']
+
     @property
     def inform_slots(self):
         return self.state['inform_slots']
-    
+
     @property
     def last_user_action(self):
         return self.history[-1]['user_action']
+
 
 class EchoAgent(Agent):
     def __init__(self, content_manager):
@@ -85,26 +127,56 @@ class RuleAgent(Agent):
             return [['welcomemsg', None, None]]
 
         for slot in self.required_slots:
-            if slot not in self.inform_slots and slot not in self.state['request_slots']:
-                return [['request', 'food', None]]
+            if slot not in self.inform_slots and slot not in self.state['request_slots'] and slot not in self.inform_slots:
+                return [['request', slot, None]]
 
-        variants = self.content_manager.available_results(self.inform_slots)
+        variants = self.content_manager.available_results(self.inform_slots, self.slot_restrictions)
         if len(variants)==0:
-            variants = self.content_manager.available_results({'food': self.inform_slots['food']})
+            variants = self.content_manager.available_results({'food': self.inform_slots['food']}, self.slot_restrictions)
             if len(variants)==0:
                 return [['canthelp', 'food', self.inform_slots['food']]]
 
-            variants = self.content_manager.available_results({'food': self.inform_slots['food'], 'area': self.inform_slots['area']})
+            variants = self.content_manager.available_results({'food': self.inform_slots['food'], 'area': self.inform_slots['area']}, self.slot_restrictions)
             if len(variants) == 0:
                 return [['canthelp', 'food', self.inform_slots['food']], ['canthelp', 'area', self.inform_slots['area']]]
 
             return [['canthelp', 'food', self.inform_slots['food']],
                     ['canthelp', 'area', self.inform_slots['area']], ['canthelp', 'pricerange',self.inform_slots['pricerange']]]
 
+        valid_variant = variants[0]
+        if 'name' not in self.state['proposed_slots']:
+            return [
+                ['inform', 'food', valid_variant['food']],
+                ['inform', 'name', valid_variant['name']],
+                ['inform', 'pricerange', valid_variant['pricerange']],
+            ]
+
+        if 'addr' in self.request_slots:
+            return [
+                ['inform', 'name', valid_variant['name']],
+                ['inform', 'addr', valid_variant['addr']]
+            ]
+
+        if 'phone' in self.request_slots:
+            return [
+                ['inform', 'name', valid_variant['name']],
+                ['inform', 'phone', valid_variant['phone']]
+            ]
+
+        if 'area' in self.request_slots:
+            return [
+                ['inform', 'name', valid_variant['name']],
+                ['inform', 'area', valid_variant['area']]
+            ]
+
+        if 'postcode' in self.request_slots:
+            return [
+                ['inform', 'name', valid_variant['name']],
+                ['inform', 'postcode', valid_variant['postcode']]
+            ]
+
         return [
-            ['inform', 'food', self.inform_slots['food']],
-            ['inform', 'name', variants[0]['name']],
-            ['inform', 'pricerange', self.inform_slots['pricerange']],
+            ['reqmore', None, None]
         ]
 
     def next(self):
@@ -115,3 +187,4 @@ class RuleAgent(Agent):
     @property
     def turn_count(self):
         return len(self.history)
+

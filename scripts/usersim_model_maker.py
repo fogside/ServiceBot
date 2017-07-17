@@ -8,46 +8,7 @@ import xgboost as xgb
 from sklearn.cross_validation import KFold
 from collections import defaultdict
 import re
-
-
-def sort_filter_acts(acts, is_user):
-    acts = filter_acts_user(acts) if is_user else filter_acts_agent(acts)
-    return sorted(acts, key=lambda x: x['act'] + '_' + ('' if len(x['slots']) == 0 else x['slots'][0][0]))
-
-
-def filter_acts_agent(acts):
-    for i in range(len(acts) - 1, -1, -1):
-        act = acts[i]
-        if act['act'].strip() == '' or act['act'] in ['canthelp.exception', 'confirm-domain', 'impl-conf', 'offer']:
-            del acts[i]
-            # if act['act'] in ['deny']:
-            # act['act'] = 'negate'
-
-    return acts
-
-
-def filter_acts_user(acts):
-    for i in range(len(acts) - 1, -1, -1):
-        act = acts[i]
-        if act['act'].strip() == '' or act['act'] in ['thankyou', 'restart', 'repeat']:
-            del acts[i]
-        if act['act'] in ['deny']:
-            act['act'] = 'negate'
-
-        if act['act'] == 'ack':
-            act['act'] = 'affirm'
-
-        if act['act'] == 'reqmore':
-            act['act'] = 'reqalts'
-
-        for slot in act['slots']:
-            if 'this' in slot:
-                slot.remove('this')
-
-            if 'slot' in slot:
-                slot.remove('slot')
-
-    return acts
+from bot.dstc_helper import *
 
 
 def usersim_binarizers():
@@ -64,6 +25,8 @@ def usersim_binarizers():
         log = json.load(open(label_path.replace('label', 'log')))
         log_turns = log['turns']
         label_turns = label['turns']
+        filter_all_acts(label_turns, log_turns)
+
         if len(label_turns) != len(log_turns):
             return result
         for i in range(len(log_turns)):
@@ -73,7 +36,8 @@ def usersim_binarizers():
                 agent_act.add(act['act'])
                 # if act['act']=='offer':
                 # continue
-                agent_act_slots.add(act['act'] + '_' + act['slots'][0][0] if len(act['slots']) > 0 else act['act'])
+                slot_index = 1 if act['act']=='request' else 0
+                agent_act_slots.add(act['act'] + '_' + act['slots'][0][slot_index] if len(act['slots']) > 0 else act['act'])
 
             user_act_all_key = []
             for act in user_acts:
@@ -112,14 +76,14 @@ def usersim_binarizers():
         lb.fit(list(value))
         result[key] = lb
 
-    pickle.dump(result, open('usersim_binarizers.p', 'wb'))
+    pickle.dump(result, open('supervised_user_simulator_binarizers.p', 'wb'))
 
 
 def create_features_for_turn(binarizers, goal, log_turns, label_turns, i, state):
     features = []
 
     # What user/agent did in the last N turns
-    for j in range(2):
+    for j in range(4):
         index = i - j
         agent_acts_for_binary = []
         agent_acts_slots_for_binary = []
@@ -131,7 +95,8 @@ def create_features_for_turn(binarizers, goal, log_turns, label_turns, i, state)
         else:
             for act in agent_acts_history:
                 agent_acts_for_binary.append(act['act'])
-                agent_acts_slots_for_binary.append(act['act'] + ('_' + act['slots'][0][0] if len(act['slots']) > 0 else ''))
+                slot_index = 1 if act['act'] == 'request' else 0
+                agent_acts_slots_for_binary.append(act['act'] + ('_' + act['slots'][0][slot_index] if len(act['slots']) > 0 else ''))
 
         features.extend(np.max(binarizers['agent_act'].transform(agent_acts_for_binary), axis=0))
         features.extend(np.max(binarizers['agent_act_slots'].transform(agent_acts_slots_for_binary), axis=0))
@@ -160,20 +125,6 @@ def create_features_for_turn(binarizers, goal, log_turns, label_turns, i, state)
     features.extend(np.max(binarizers['user_request_slots'].transform(user_request_slots), axis=0))
     features.extend(np.max(binarizers['user_constraint_slots'].transform(user_constraint_slots), axis=0))
 
-    user_acts = label_turns[i]['semantics']['json']
-    user_act_all = []
-    for act in user_acts:
-        first_slot_value = act['slots'][0][0] if len(act['slots']) > 0 else None
-        key = act['act'] + '_' + first_slot_value if len(act['slots']) > 0 else act['act']
-        user_act_all.append(key)
-
-        # What user already did(inform/request)
-        if first_slot_value is not None:
-            if act['act'] == 'inform' and first_slot_value in binarizers['user_constraint_slots'].classes_:
-                state['user_informed'].add(first_slot_value)
-            elif act['act'] == 'request' and first_slot_value in binarizers['user_request_slots'].classes_:
-                state['user_requested'].add(first_slot_value)
-
     if len(state['user_informed']) == 0:
         state['user_informed'].add('empty')
 
@@ -200,6 +151,21 @@ def create_features_for_turn(binarizers, goal, log_turns, label_turns, i, state)
     features.append(len(not_filled_requests)+len(not_filled_constraints))
 
     features = hstack(features)
+
+    user_acts = label_turns[i]['semantics']['json']
+    user_act_all = []
+    for act in user_acts:
+        first_slot_value = act['slots'][0][0] if len(act['slots']) > 0 else None
+        key = act['act'] + '_' + first_slot_value if len(act['slots']) > 0 else act['act']
+        user_act_all.append(key)
+
+        # What user already did(inform/request)
+        if first_slot_value is not None:
+            if act['act'] == 'inform' and first_slot_value in binarizers['user_constraint_slots'].classes_:
+                state['user_informed'].add(first_slot_value)
+            elif act['act'] == 'request' and first_slot_value in binarizers['user_request_slots'].classes_:
+                state['user_requested'].add(first_slot_value)
+
     key = '__'.join(user_act_all) if len(user_act_all) > 0 else 'empty'
     return features, binarizers['user_act_all'].transform([key])[0]
 
@@ -213,7 +179,7 @@ def process_dialog(label_path):
     label_turns = label['turns']
     filter_all_acts(label_turns, log_turns)
 
-    binarizers = pickle.load(open('usersim_binarizers.p', 'rb'))
+    binarizers = pickle.load(open('supervised_user_simulator_binarizers.p', 'rb'))
     if len(label_turns) != len(log_turns):
         return result_x, result_y
 
@@ -270,9 +236,9 @@ def train():
         watchlist = [(d_train, 'train'), (d_valid, 'valid')]
 
         model = xgb.train(params, d_train, num_boost_round, watchlist, early_stopping_rounds=2, verbose_eval=10)
-        pickle.dump(model, open('model.p', 'wb'))
-        predicted = model.predict(d_valid)
-        result[test_index] = predicted
+        pickle.dump(model, open('supervised_user_simulator_model.p', 'wb'))
+        #predicted = model.predict(d_valid)
+        #result[test_index] = predicted
         break
 
 
@@ -285,13 +251,13 @@ def filter_all_acts(label_turns, log_turns):
 
 
 def predict_for_dialog(label_path):
-    model = pickle.load(open('model.p', 'rb'))
+    model = pickle.load(open('supervised_user_simulator_model.p', 'rb'))
     label = json.load(open(label_path))
     log = json.load(open(label_path.replace('label', 'log')))
     log_turns = log['turns']
     label_turns = label['turns']
     filter_all_acts(label_turns, log_turns)
-    binarizers = pickle.load(open('usersim_binarizers.p', 'rb'))
+    binarizers = pickle.load(open('supervised_user_simulator_binarizers.p', 'rb'))
     goal = fill_goal_from_label(label)
     state = defaultdict(set)
 
@@ -326,7 +292,7 @@ def fill_goal_from_label(label):
     return goal
 
 def create_goals_file():
-    food_pattern = re.compile('.*it should serve (.+?) food.*', re.IGNORECASE)
+    food_pattern = re.compile('.*it should serve ([^.]+) food.*', re.IGNORECASE)
     all_goals = []
     for i, label_path in enumerate(glob.glob('../data/dstc2_traindev/**/label.json', recursive=True)):
         label = json.load(open(label_path))
@@ -338,15 +304,16 @@ def create_goals_file():
                     if slot_name=='food':
                         goal['alt_constraints'] = ['food', slot_value]
                         goal['constraints'][i][1] = match.group(1)
-        all_goals.append(goal)
+            all_goals.append(goal)
 
     json.dump(all_goals, open('../data/goals.json', 'w'))
 
 
 
-# usersim_binarizers()
+#usersim_binarizers()
 #process_all_dialogs()
 #train()
+
 
 # result = process_dialog('..\data\dstc2_traindev\data\Mar13_S1A1\\voip-db80a9e6df-20130328_230811\\label.json')
 #predict_for_dialog('..\data\dstc2_traindev\data\Mar13_S1A1\\voip-db80a9e6df-20130328_230811\\label.json')
@@ -354,4 +321,6 @@ def create_goals_file():
 #predict_for_dialog('..\data\dstc2_traindev\data\Mar13_S1A1\\voip-e0035cc31b-20130323_211354\\label.json')
 #predict_for_dialog('..\data\dstc2_traindev\data\Mar13_S0A0\\voip-ad40cf5489-20130325_181825\\label.json')
 #predict_for_dialog('..\data\dstc2_traindev\data\Mar13_S1A1\\voip-e54437a6f0-20130325_133942\\label.json')
+predict_for_dialog('..\data\dstc2_traindev\data\Mar13_S0A1\\voip-597cfafdee-20130328_231524\\label.json')# Empty первым действием у юзера
+
 

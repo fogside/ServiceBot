@@ -7881,7 +7881,7 @@
     "constraints": [
       [
         "food",
-        "seafood. If there is no such venue how about chinese type of"
+        "seafood"
       ],
       [
         "pricerange",
@@ -13113,7 +13113,7 @@
     "constraints": [
       [
         "food",
-        "seafood. If there is no such venue how about portuguese type of"
+        "seafood"
       ],
       [
         "pricerange",
@@ -13240,7 +13240,7 @@
     "constraints": [
       [
         "food",
-        "seafood. If there is no such venue how about chinese type of"
+        "seafood"
       ],
       [
         "pricerange",
@@ -22920,7 +22920,7 @@
     "constraints": [
       [
         "food",
-        "seafood. If there is no such venue how about asian oriental type of"
+        "seafood"
       ],
       [
         "area",
@@ -30980,7 +30980,7 @@
     "constraints": [
       [
         "food",
-        "seafood. If there is no such venue how about chinese type of"
+        "seafood"
       ],
       [
         "pricerange",
@@ -33668,7 +33668,7 @@
     "constraints": [
       [
         "food",
-        "seafood. If there is no such venue how about italian type of"
+        "seafood"
       ],
       [
         "area",
@@ -39333,7 +39333,7 @@
     "constraints": [
       [
         "food",
-        "seafood. If there is no such venue how about portuguese type of"
+        "seafood"
       ],
       [
         "pricerange",

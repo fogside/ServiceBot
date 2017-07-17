@@ -23,7 +23,11 @@ class NlgPattern:
             ['What part of town do you have in mind?', [['request', 'area']]],
             ["I'm sorry but there is no restaurant serving {} food", [['canthelp', 'food']]],
             ["I'm sorry but there is no {} restaurant in the {} of town", [['canthelp', 'food'], ['canthelp', 'area']]],
-            ["Sorry there is no {} restaurant in the {} of town serving $area$ american {}", [['canthelp', 'pricerange'], ['canthelp', 'area'], ['canthelp', 'food'] ]],
+            ["Sorry there is no {} restaurant in the {} of town serving {} food", [['canthelp', 'pricerange'], ['canthelp', 'area'], ['canthelp', 'food'] ]],
+            ['Sorry I am a bit confused ; please tell me again what you are looking for .', [['repeat', None]]],
+            ['Can I help you with anything else?', [['reqmore', None]]],
+            ['Would you like something in the cheap , moderate , or expensive price range?', [['request', 'pricerange']]],
+            ['Sure , {} is on {}, the phone number is {}', [['inform', 'name'], ['inform', 'addr'], ['inform', 'phone']]],
         ]
 
         self.patterns_indexes = dict()

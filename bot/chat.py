@@ -4,10 +4,12 @@ from managers import *
 from nlg import *
 from nlu import *
 import settings
+from numpy.random import RandomState
 
 USE_TELEGRAM = False
 
-content_manager = ContentManager.from_settings(settings)
+random_state = RandomState(12)
+content_manager = ContentManager.from_settings(settings, random_state)
 nlg = NlgPattern(content_manager)
 nlu = NluPattern()
 if USE_TELEGRAM:

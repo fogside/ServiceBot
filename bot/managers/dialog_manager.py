@@ -4,6 +4,7 @@ from usersims import TelegramUserSimulator
 import logging
 import os
 
+
 class DialogManager:
     """ A dialog manager to mediate the interaction between an agent and a customer """
     def __init__(self, agent, user, content_manager, nlu):
@@ -11,11 +12,17 @@ class DialogManager:
         self.content_manager = content_manager
         self.user = user
         self.agent = agent
+        self.dialog_number = 0
+        self.turn_number = 0
         self.initialize_episode()
+
 
     def initialize_episode(self):
         self.agent.initialize_episode()
         self.user.initialize_episode()
+
+        self.dialog_number += 1
+        self.user.send_to_user('>'+str(self.dialog_number))
 
     def agent_action(self):
         self.agent_actions = self.agent.next()
@@ -26,6 +33,9 @@ class DialogManager:
         if user_message is not None and user_actions is None:
             user_actions = self.nlu.parse_user_actions(user_message)
 
+        if 'bye' in [ua[0] for ua in user_actions]:
+            self.initialize_episode()
+            return
         self.agent.update_state_user(user_actions)
 
     def next_turn(self, reverse=False):
@@ -35,6 +45,8 @@ class DialogManager:
         else:
             self.agent_action()
             self.user_action()
+
+        self.turn_number += 1
 
     def start(self):
         while True:
@@ -49,6 +61,7 @@ logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s
                     )
 
 logger = logging.getLogger(__name__)
+
 
 class TelegramDialogManager:
     def __init__(self, agent_constructor, nlu, nlg, content_manager, api_key):
