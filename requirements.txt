@@ -2,3 +2,4 @@ python-telegram-bot==6.1.0
 xgboost==0.6a2
 numpy==1.12.1
 tensorflow==1.1.0
+fuzzywuzzy==0.15.0

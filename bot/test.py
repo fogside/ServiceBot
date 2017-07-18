@@ -1,16 +1,43 @@
-import numpy as np
-from nlu.data_generator import NLUDataGenerator
+import time
+import asyncio
 
-PAD = 0
+def coroutine(f):
+    def wrap(*args,**kwargs):
+        gen = f(*args,**kwargs)
+        gen.send(None)
+        return gen
+    return wrap
 
-TimeMajor = False
-batch_size = 32
-encoder_max_time = 64
+class WaitInput(object):
+    def __init__(self):
+        self.coro = self.coro()
 
-data_gen = NLUDataGenerator('../data/train/usr_df_final.csv',
-                           '../data/ontology_dstc2.json',
-                           '../data/slots.txt', None, seq_len = encoder_max_time,
-                           batch_size = batch_size, time_major=TimeMajor)
+    @coroutine
+    def coro(self):
+        while True:
+            message= (yield )
+            if message is not None:
+                yield message
+                self.coro.close()
 
-x, m1, m2, _lens = next(data_gen)
-print(x)
+
+wait_input = WaitInput()
+
+# async def test():
+#     result = await wait_input
+#     print('awaited. Result = {}'.format(result))
+#     return result
+#
+# # c=test()
+index = 0
+while True:
+    time.sleep(1)
+    print('main')
+    index+=1
+    if index>=1:
+        print('Awaited! Result = {}'.format(wait_input.coro.send(index)))
+        wait_input = WaitInput()
+#
+# loop = asyncio.get_event_loop()
+# loop.run_until_complete(test())
+# loop.close()

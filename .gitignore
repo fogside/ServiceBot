@@ -5,3 +5,4 @@ data/another_data
 bot/test.py
 bot/settings/custom_settings.py
 data/dstc2_traindev
+scripts/*.p
