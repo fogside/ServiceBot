@@ -20,13 +20,14 @@ class NlgPattern:
             ['{} is in the {} part of town', [['inform', 'name'], ['inform', 'area']]],
             ['The price range at {} is {}', [['inform', 'name'], ['inform', 'pricerange']]],
             ['What part of town do you have in mind?', [['request', 'area']]],
-            ["I'm sorry but there is no restaurant serving {} food", [['canthelp', 'food']]],
-            ["I'm sorry but there is no {} restaurant in the {} of town", [['canthelp', 'area']] ],
-            ["Sorry there is no {} restaurant in the {} of town serving {} food", [['canthelp', 'food'] ]],
+            ["I'm sorry but there is no restaurant serving {} food  with these constraints", [['canthelp', 'food']]],
+            ["I'm sorry but there is no restaurant in the {} of town  with these constraints", [['canthelp', 'area']] ],
+            ["I'm sorry but there is no restaurant in the {} pricerange with these constraints", [['canthelp', 'pricerange']]],
             ['Sorry I am a bit confused ; please tell me again what you are looking for .', [['repeat', None]]],
             ['Can I help you with anything else?', [['reqmore', None]]],
             ['Would you like something in the cheap , moderate , or expensive price range?', [['request', 'pricerange']]],
             ['Sure , {} is on {}, the phone number is {}', [['inform', 'name'], ['inform', 'addr'], ['inform', 'phone']]],
+            ['Sure , {} is on {}, the phone number is {} and postcode is {}', [['inform', 'name'], ['inform', 'addr'], ['inform', 'phone'], ['inform', 'postcode']]],
             ['{} is on {} , and it is in the {} price range', [['inform', 'name'], ['inform', 'addr'], ['inform', 'pricerange']]],
             ['The phone number of the {} is {} and its postcode is {}', [['inform', 'name'], ['inform', 'phone'], ['inform', 'postcode']]],
             ['{} is on {} and serves tasty {} food', [['inform', 'name'], ['inform', 'addr'], ['inform', 'food']]],
@@ -40,6 +41,7 @@ class NlgPattern:
             ['{} is in the {} price range , and their post code is {}', [['inform', 'name'], ['inform', 'pricerange'], ['inform', 'postcode'], ]],
             ['The phone number of {} restaurant is {} and it is in the {} price range', [['inform', 'name'], ['inform', 'phone'], ['inform', 'pricerange'], ]],
             ['{} is a great restaurant in the {} of town and their post code is {}', [['inform', 'name'], ['inform', 'area'], ['inform', 'postcode']]],
+            ['{} is on {} and their post code is {}', [['inform', 'name'], ['inform', 'addr'], ['inform', 'postcode']]],
         ]
 
         self.patterns_indexes = dict()
@@ -61,4 +63,7 @@ class NlgPattern:
                         format_args.append(agent_slot_value)
                     break
 
-        return pattern.format(*format_args)
+        try:
+            return pattern.format(*format_args)
+        except Exception:
+            raise Exception('Not enough args for pattern {} given. Agent actions: {}'.format(pattern, agent_actions))

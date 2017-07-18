@@ -17,7 +17,7 @@ tf.set_random_seed(1)
 
 class DoubleDQN:
     def __init__(self,**kwargs):
-        required_parametrs = ['n_features', 'n_actions']
+        required_parametrs = ['n_features', 'n_actions', 'memory_size']
         for p in required_parametrs:
             if kwargs.get(p) is None:
                 raise Exception('No parametr {} given'.format(p))
@@ -30,10 +30,15 @@ class DoubleDQN:
         self.lr = kwargs.get('learning_rate', 0.001)
         self.gamma = kwargs.get('reward_decay', 0.999)
         self.epsilon_max = kwargs.get('e_greedy', 0.9)
+        self.batch_size = kwargs.get('batch_size', 32)
+        self.memory_size = kwargs.get('memory_size')
         self.epsilon_increment = kwargs.get('e_greedy_increment')
+        self.replace_target_iter = kwargs.get('replace_target_iter', 200)
         self.epsilon = 1
-
+        self.learn_step_counter = 0
+        
         self.double_q = kwargs.get('double_q', True)    # decide to use double q or not
+        self.memory = np.zeros((self.memory_size, self.n_features*2+2))
 
         sess = kwargs.get('sess')
         self._build_net()
@@ -97,16 +102,35 @@ class DoubleDQN:
         if np.random.uniform() > self.epsilon:  # choosing action
             action = np.random.randint(0, self.n_actions)
         return action
-
-    def replace_target_params(self):
+    
+    def store_transition(self, transition):
+        if not hasattr(self, 'memory_counter'):
+            self.memory_counter = 0
+        index = self.memory_counter % self.memory_size
+        self.memory[index, :] = transition.flatten()
+        self.memory_counter += 1
+        
+    def _replace_target_params(self):
         t_params = tf.get_collection('target_net_params')
         e_params = tf.get_collection('eval_net_params')
         self.sess.run([tf.assign(t, e) for t, e in zip(t_params, e_params)])
 
         print('\ntarget_params_replaced\n')
 
-    def learn(self, batch_memory):
-        batch_memory = np.array(batch_memory)
+    def learn(self):
+        if self.memory_counter<self.memory_size:
+            return
+
+        if self.learn_step_counter % self.replace_target_iter == 0:
+            self._replace_target_params()
+            print('\ntarget_params_replaced\n')
+
+        if self.memory_counter > self.memory_size:
+            sample_index = np.random.choice(self.memory_size, size=self.batch_size)
+        else:
+            sample_index = np.random.choice(self.memory_counter, size=self.batch_size)
+        batch_memory = self.memory[sample_index, :]
+        
         q_next, q_eval4next = self.sess.run(
             [self.q_next, self.q_eval],
             feed_dict={self.s_: batch_memory[:, -self.n_features:],    # next observation
@@ -132,7 +156,7 @@ class DoubleDQN:
         self.cost_his.append(self.cost)
 
         self.epsilon = self.epsilon + self.epsilon_increment if self.epsilon < self.epsilon_max else self.epsilon_max
-        return {'cost': {'total_cost': self.cost}}
+        self.learn_step_counter += 1
 
     def save(self, filepath):
         self.kwargs['sess'] = None

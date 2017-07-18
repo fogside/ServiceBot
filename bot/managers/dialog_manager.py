@@ -16,7 +16,6 @@ class DialogManager:
         self.turn_number = 0
         self.initialize_episode()
 
-
     def initialize_episode(self):
         self.agent.initialize_episode()
         self.user.initialize_episode()
@@ -35,10 +34,13 @@ class DialogManager:
         if user_message is not None and user_actions is None:
             user_actions = self.nlu.parse_user_actions(user_message)
 
+        goal = None
+        if 'goal' in dir(self.user):
+            goal = self.user.goal
+        self.agent.update_state_user(user_actions, goal=goal)
+
         if 'bye' in [ua[0] for ua in user_actions]:
             self.initialize_episode()
-            return
-        self.agent.update_state_user(user_actions)
 
     def next_turn(self, reverse=False):
         if reverse:

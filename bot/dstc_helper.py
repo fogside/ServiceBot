@@ -1,3 +1,5 @@
+import re
+
 def filter_all_acts(label_turns, log_turns):
     for i in range(len(label_turns)):
         label_turns[i]['semantics']['json'] = sort_filter_acts(label_turns[i]['semantics']['json'], True)
@@ -95,3 +97,16 @@ def filter_acts_user(acts):
                 slot.remove('slot')
 
     return acts
+
+food_pattern = re.compile('.*it should serve ([^.]+?)(?: food)?[.]', re.IGNORECASE)
+
+
+def add_alt_constraints(goal):
+    if 'If there is no such venue' in goal['text']:
+        match = food_pattern.match(goal['text'])
+        if match is None:
+            raise Exception('No alt constraint in {}'.format(goal['text']))
+        for i, (slot_name, slot_value) in enumerate(list(goal['constraints'])):
+            if slot_name == 'food':
+                goal['alt_constraints'] = ['food', slot_value]
+                goal['constraints'][i][1] = match.group(1)

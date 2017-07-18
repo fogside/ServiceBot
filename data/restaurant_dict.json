@@ -113,7 +113,8 @@
     "area": "centre",
     "addr": "crowne plaza hotel 20 downing street",
     "name": "pizza express Fen Ditton",
-    "phone": "01223 309147"
+    "phone": "01223 309147",
+    "food": "russian"
   },
   "72": {
     "food": "british",
@@ -769,7 +770,8 @@
     "pricerange": "expensive",
     "addr": "59 hills road city centre",
     "name": "the cambridge chop house",
-    "phone": "01223 359506"
+    "phone": "01223 359506",
+    "area": "west"
   },
   "73": {
     "food": "international",

@@ -64,4 +64,4 @@ class ContentManager:
     def random_goal(self):
         result = self.random_state.choice(self.goals)
         result['constraints_dict'] = {key: value for key,value in result['constraints']}
-        return result
+        return result.copy()

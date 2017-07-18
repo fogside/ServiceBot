@@ -10,14 +10,13 @@ import pickle
 random_state = RandomState(13)
 content_manager = ContentManager.from_settings(settings, random_state)
 nlg = NlgPattern(content_manager)
-nlu = NluPattern()
+nlu = NluPattern(settings.DSTC_PATH, settings.NLU_PATTERN_SAVE_PATH)
 binarizers = pickle.load(open(settings.SL_BINARIZERS_PATH, 'rb'))
 
-agent = RLAgent(content_manager, settings.RLAGENT_SL_TRAIN_DATA_PATH, settings.RLAGENT_MODEL,
-                settings.DSTC_PATH, binarizers=binarizers, need_sl=True, sl_rounds=100, rounds=100,
-                batch_size=100)
+agent = RLAgent(content_manager=content_manager, path_to_model= settings.RLAGENT_MODEL,
+                path_to_dstc=settings.DSTC_PATH, binarizers=binarizers, max_turn=settings.MAX_TURN)
+user = SupervisedUserSimulator(content_manager, nlg, settings.SL_US_MODEL_PATH, binarizers, settings.MAX_TURN)
 
-
-user = SupervisedUserSimulator(content_manager, nlg, settings.SL_US_MODEL_PATH, binarizers)
+#user = ConsoleUserSimulator(content_manager, nlg)
 dialog_manager = DialogManager(agent, user, content_manager, nlu)
 dialog_manager.start()

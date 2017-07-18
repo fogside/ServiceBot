@@ -41,7 +41,7 @@ class Agent:
         }
         self.history = []
 
-    def update_state_user(self, user_actions, nl=None):
+    def update_state_user(self, user_actions, nl=None, goal=None):
         """
         :param user_actions: list of triples: (agent action, slot_name, slot_value)
         :param nl: Natural language string from user
@@ -79,7 +79,6 @@ class Agent:
                 if slot_for_reqalts is not None and slot_for_reqalts in self.state['proposed_slots']:
                     self.state['proposed_slots'][slot_for_reqalts][1].add(slot_value_for_reqalts)
 
-
     def was_user_action_last_turn(self, user_action):
         if len(self.history)<2:
             return False
@@ -91,7 +90,11 @@ class Agent:
 
     @property
     def turn_count(self):
-        return len(self.history)
+        if len(self.history)==0:
+            return 0
+        if self.history[-1]['user_action'] is None:
+            return len(self.history)
+        return len(self.history) + 1
 
     @property
     def slot_restrictions(self):
@@ -100,6 +103,10 @@ class Agent:
     @property
     def request_slots(self):
         return self.state['request_slots']
+
+    @property
+    def agent_request_slots(self):
+        return self.state['agent_request_slots']
 
     @property
     def proposed_slots(self):

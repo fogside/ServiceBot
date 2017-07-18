@@ -67,7 +67,8 @@ def usersim_binarizers():
                 key = '__'.join(user_act_all_key)
                 # if key=='inform_area__negate':
                 # continue
-                user_act_all.add(key)
+                if not 'bye' in key:
+                    user_act_all.add(key)
 
         # User goals and constraints
         goal = label['task-information']['goal']
@@ -83,6 +84,9 @@ def usersim_binarizers():
         if act in agent_act_full:
             agent_act_full.remove(act)
 
+    user_act.remove('bye')
+    user_act_slots.remove('bye')
+
     result['agent_act'] = agent_act
     result['user_act'] = user_act
     result['agent_act_slots'] = agent_act_slots
@@ -90,6 +94,7 @@ def usersim_binarizers():
     result['user_act_all'] = user_act_all
     result['user_request_slots'] = user_request_slots
     result['user_constraint_slots'] = user_constraint_slots
+    result['all_slots'] = user_request_slots|user_constraint_slots
 
     for key, value in result.items():
         lb = LabelBinarizer() if key != 'user_act_all' else LabelEncoder()
@@ -189,6 +194,9 @@ def create_features_for_turn(binarizers, goal, log_turns, label_turns, i, state)
                 state['user_requested'].add(first_slot_value)
 
     key = '__'.join(user_act_all) if len(user_act_all) > 0 else 'empty'
+    if 'bye' in key:
+        return None, None
+
     return features, binarizers['user_act_all'].transform([key])[0]
 
 
@@ -209,6 +217,9 @@ def process_dialog(label_path):
     state = defaultdict(set)
     for i in range(len(log_turns)):
         x, y = create_features_for_turn(binarizers, goal, log_turns, label_turns, i, state)
+        if x is None or y is None:
+            continue
+
         result_x.append(x)
         result_y.append(y)
 
@@ -222,7 +233,7 @@ def process_all_dialogs():
         if i > 0 and i % 10 == 0:
             print(i)
             #if i==300:
-                #break
+             #   break
 
         x, y = process_dialog(label_path)
         if len(y) > 0:
@@ -314,27 +325,20 @@ def fill_goal_from_label(label):
     return goal
 
 def create_goals_file():
-    food_pattern = re.compile('.*it should serve ([^.]+) food.*', re.IGNORECASE)
     all_goals = []
     for i, label_path in enumerate(glob.glob('../data/dstc2_traindev/**/label.json', recursive=True)):
         label = json.load(open(label_path))
         goal = label['task-information']['goal']
-        if 'If there is no such venue' in goal['text']:
-            match = food_pattern.match(goal['text'])
-            if match is not None:
-                for i, (slot_name, slot_value) in enumerate(list(goal['constraints'])):
-                    if slot_name=='food':
-                        goal['alt_constraints'] = ['food', slot_value]
-                        goal['constraints'][i][1] = match.group(1)
-            all_goals.append(goal)
+
+        all_goals.append(goal)
 
     json.dump(all_goals, open('../data/goals.json', 'w'))
 
 
 
-usersim_binarizers()
-#process_all_dialogs()
-#train()
+#usersim_binarizers()
+process_all_dialogs()
+train()
 
 
 # result = process_dialog('..\data\dstc2_traindev\data\Mar13_S1A1\\voip-db80a9e6df-20130328_230811\\label.json')
