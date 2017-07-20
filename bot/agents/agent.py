@@ -90,11 +90,11 @@ class Agent:
 
     @property
     def turn_count(self):
-        if len(self.history)==0:
+        if len(self.history) == 0:
             return 0
         if self.history[-1]['user_action'] is None:
-            return len(self.history)
-        return len(self.history) + 1
+            return len(self.history) - 1
+        return len(self.history)
 
     @property
     def slot_restrictions(self):
@@ -127,6 +127,19 @@ class EchoAgent(Agent):
 
     def next(self):
         return None, 'hello'
+
+
+class ConsoleAgent(Agent):
+    def __init__(self, content_manager):
+        super().__init__(content_manager)
+
+    def next(self):
+        string = input()
+        string = string.strip()
+        if string in self.content_manager.text_to_actions:
+            return self.content_manager.text_to_actions[string]
+
+        raise Exception('ConsoleAgent: Unknown string = {}'.format(string))
 
 
 class RuleAgent(Agent):

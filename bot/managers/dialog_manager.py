@@ -7,7 +7,8 @@ import os
 
 class DialogManager:
     """ A dialog manager to mediate the interaction between an agent and a customer """
-    def __init__(self, agent, user, content_manager, nlu):
+    def __init__(self, agent, user, content_manager, nlu, print_every_n=1):
+        self.print_every_n = print_every_n
         self.nlu = nlu
         self.content_manager = content_manager
         self.user = user
@@ -21,6 +22,11 @@ class DialogManager:
         self.user.initialize_episode()
 
         self.dialog_number += 1
+        if self.dialog_number%self.print_every_n!=0:
+            self.user.print_dialog = False
+        else:
+            self.user.print_dialog = True
+
         self.user.send_to_user('>'+str(self.dialog_number))
 
     def agent_action(self):

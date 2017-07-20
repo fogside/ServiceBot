@@ -11,31 +11,34 @@ gym: 0.8.0
 import numpy as np
 import tensorflow as tf
 import pickle
+from sklearn.preprocessing import normalize
 
-np.random.seed(1)
 tf.set_random_seed(1)
+
 
 class DoubleDQN:
     def __init__(self,**kwargs):
-        required_parametrs = ['n_features', 'n_actions', 'memory_size']
+        required_parametrs = ['n_features', 'n_actions', 'memory_size', 'random_state']
         for p in required_parametrs:
             if kwargs.get(p) is None:
                 raise Exception('No parametr {} given'.format(p))
 
         self.kwargs = kwargs
 
-        self.hidden_size = kwargs.get('hidden_size', 80)
+        self.hidden_size = kwargs.get('hidden_size', 10)
         self.n_actions = kwargs.get('n_actions')
         self.n_features = kwargs.get('n_features')
-        self.lr = kwargs.get('learning_rate', 0.001)
+        self.lr = kwargs.get('learning_rate', 0.1)
         self.gamma = kwargs.get('reward_decay', 0.999)
         self.epsilon_max = kwargs.get('e_greedy', 0.9)
         self.batch_size = kwargs.get('batch_size', 32)
         self.memory_size = kwargs.get('memory_size')
         self.epsilon_increment = kwargs.get('e_greedy_increment')
-        self.replace_target_iter = kwargs.get('replace_target_iter', 200)
-        self.epsilon = 1
+        self.replace_target_iter = kwargs.get('replace_target_iter', 10)
+        self.epsilon = 0.9
         self.learn_step_counter = 0
+        self.memory_counter = 0
+        self.random_state = kwargs.get('random_state')
         
         self.double_q = kwargs.get('double_q', True)    # decide to use double q or not
         self.memory = np.zeros((self.memory_size, self.n_features*2+2))
@@ -86,11 +89,14 @@ class DoubleDQN:
 
             self.q_next = build_layers(self.s_, c_names, n_l1, w_initializer, b_initializer)
 
-    def choose_action(self, observation):
+    def choose_action(self, observation, act_indexes_to_ignore):
         if len(observation.shape)!=2:
             observation = observation[np.newaxis, :]
 
         actions_value = self.sess.run(self.q_eval, feed_dict={self.s: observation})
+        for i in act_indexes_to_ignore:
+            actions_value[0][i] = -10**3
+
         action = np.argmax(actions_value)
 
         if not hasattr(self, 'q'):  # record action value it gets
@@ -99,13 +105,16 @@ class DoubleDQN:
         self.running_q = self.running_q*0.99 + 0.01 * np.max(actions_value)
         self.q.append(self.running_q)
 
-        if np.random.uniform() > self.epsilon:  # choosing action
-            action = np.random.randint(0, self.n_actions)
-        return action
+        was_random = False
+        if self.random_state.uniform() > self.epsilon:  # choosing action
+            action_probs = [1/(self.n_actions-len(act_indexes_to_ignore)) if i not in act_indexes_to_ignore else 0 for i in range(self.n_actions)]
+            action_probs = normalize(action_probs, norm='l1')[0]
+            action = self.random_state.choice(list(range(self.n_actions)), p=action_probs)
+            was_random = True
+
+        return action, was_random
     
     def store_transition(self, transition):
-        if not hasattr(self, 'memory_counter'):
-            self.memory_counter = 0
         index = self.memory_counter % self.memory_size
         self.memory[index, :] = transition.flatten()
         self.memory_counter += 1
@@ -118,17 +127,16 @@ class DoubleDQN:
         print('\ntarget_params_replaced\n')
 
     def learn(self):
-        if self.memory_counter<self.memory_size:
-            return
+        #if self.memory_counter<self.memory_size:
+         #   return
 
-        if self.learn_step_counter % self.replace_target_iter == 0:
+        if self.learn_step_counter % self.replace_target_iter == 0 and self.learn_step_counter>0:
             self._replace_target_params()
-            print('\ntarget_params_replaced\n')
 
         if self.memory_counter > self.memory_size:
-            sample_index = np.random.choice(self.memory_size, size=self.batch_size)
+            sample_index = self.random_state.choice(self.memory_size, size=self.batch_size)
         else:
-            sample_index = np.random.choice(self.memory_counter, size=self.batch_size)
+            sample_index = self.random_state.choice(self.memory_counter, size=self.batch_size)
         batch_memory = self.memory[sample_index, :]
         
         q_next, q_eval4next = self.sess.run(

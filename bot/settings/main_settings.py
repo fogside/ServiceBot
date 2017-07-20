@@ -7,5 +7,5 @@ SL_US_MODEL_PATH = 'models/supervised_user_simulator_model.p'
 SL_BINARIZERS_PATH = 'models/supervised_user_simulator_binarizers.p'
 RLAGENT_MODEL = 'models/rlagent_model.p'
 DSTC_PATH = BASE_DIR+'data/dstc2_traindev'
-NLU_PATTERN_SAVE_PATH = BASE_DIR+'data/nlu_pattern.json'
+CONTENT_MANAGER_SAVE_PATH = BASE_DIR+'data/content_manger_cached.json'
 MAX_TURN = 30

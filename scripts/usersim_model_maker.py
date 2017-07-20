@@ -9,6 +9,7 @@ from sklearn.cross_validation import KFold
 from collections import defaultdict
 import re
 from bot.dstc_helper import *
+from bot.usersims.sl_usersim import create_features_for_turn
 
 
 def usersim_binarizers():
@@ -28,39 +29,45 @@ def usersim_binarizers():
         log_turns = log['turns']
         label_turns = label['turns']
         filter_all_acts(label_turns, log_turns)
+        dstc_turns_to_triplets(label_turns, log_turns)
 
         if len(label_turns) != len(log_turns):
             return result
         for i in range(len(log_turns)):
-            agent_acts = log_turns[i]['output']['dialog-acts']
-            user_acts = label_turns[i]['semantics']['json']
+            agent_acts = log_turns[i]
+            user_acts = label_turns[i]
 
             turn_act_slots = []
             for act in agent_acts:
-                agent_act.add(act['act'])
-                # if act['act']=='offer':
+                agent_act.add(act[0])
+                # if act[0]=='offer':
                 # continue
-                slot_index = 1 if act['act']=='request' else 0
-                act_slot = act['act'] + '_' + act['slots'][0][slot_index] if len(act['slots']) > 0 else act['act']
-                agent_act_slots.add(act_slot)
+
+                act_slot = act[0] +  ('_' + act[1] if act[1] is not None else '')
+                if act[1] is not None:
+                    agent_act_slots.add(act_slot)
+
                 turn_act_slots.append(act_slot)
             turn_act_slots = sorted(turn_act_slots)
             if len(turn_act_slots)>3 and 'inform_pricerange' in turn_act_slots:
                 turn_act_slots.remove('inform_pricerange')
 
             turn_act_slots_str = '__'.join(turn_act_slots)
-            if 'inform_name__inform_postcode__inform_pricerange' in turn_act_slots_str:
-                print('{}, {}'.format(log_turns[i]['output']['transcript'], turn_act_slots))
+            #if 'inform_name__inform_postcode__inform_pricerange' in turn_act_slots_str:
+               # print('{}, {}'.format(log_turns[i]['output']['transcript'], turn_act_slots))
 
             agent_act_full.add(turn_act_slots_str)
 
             user_act_all_key = []
             for act in user_acts:
-                user_act.add(act['act'])
-                key = act['act'] + '_' + act['slots'][0][0] if len(act['slots']) > 0 else act['act']
+                user_act.add(act[0])
+
+                key = act[0] + ('_' + act[1] if act[1] is not None else '')
                 # if key== 'inform_area__negate':
                 # continue
-                user_act_slots.add(key)
+                if act[1] is not None:
+                    user_act_slots.add(key)
+
                 user_act_all_key.append(key)
 
             if len(user_act_all_key) > 0:
@@ -85,7 +92,6 @@ def usersim_binarizers():
             agent_act_full.remove(act)
 
     user_act.remove('bye')
-    user_act_slots.remove('bye')
 
     result['agent_act'] = agent_act
     result['user_act'] = user_act
@@ -96,108 +102,15 @@ def usersim_binarizers():
     result['user_constraint_slots'] = user_constraint_slots
     result['all_slots'] = user_request_slots|user_constraint_slots
 
-    for key, value in result.items():
+    for key, value in list(result.items()):
         lb = LabelBinarizer() if key != 'user_act_all' else LabelEncoder()
         lb.fit(list(value))
         result[key] = lb
+        result[key+'_reverse'] = {name: i for i, name in enumerate(lb.classes_)}
 
     agent_act_full = sorted(list(agent_act_full))
     result['agent_act_full'] = {a: i for i, a in enumerate(agent_act_full)}
-    pickle.dump(result, open('supervised_user_simulator_binarizers.p', 'wb'))
-
-
-def create_features_for_turn(binarizers, goal, log_turns, label_turns, i, state):
-    features = []
-
-    # What user/agent did in the last N turns
-    for j in range(4):
-        index = i - j
-        agent_acts = []
-        agent_acts_slots = []
-
-        agent_acts_history = log_turns[index]['output']['dialog-acts'] if index >= 0 else []
-        if len(agent_acts_history) == 0:
-            agent_acts.append('empty')
-            agent_acts_slots.append('empty')
-        else:
-            for act in agent_acts_history:
-                agent_acts.append(act['act'])
-                slot_index = 1 if act['act'] == 'request' else 0
-                agent_acts_slots.append(act['act'] + ('_' + act['slots'][0][slot_index] if len(act['slots']) > 0 else ''))
-
-        features.extend(np.max(binarizers['agent_act'].transform(agent_acts), axis=0))
-        features.extend(np.max(binarizers['agent_act_slots'].transform(agent_acts_slots), axis=0))
-
-        if j > 0:
-            user_acts = []
-            user_acts_slots = []
-
-            user_acts_history = label_turns[index]['semantics']['json'] if index > 0 else []
-            if len(user_acts_history) == 0:
-                user_acts.append('empty')
-                user_acts_slots.append('empty')
-            else:
-                for act in user_acts_history:
-                    user_acts.append(act['act'])
-                    user_acts_slots.append(act['act'] + ('_' + act['slots'][0][0] if len(act['slots']) > 0 else ''))
-
-            features.extend(np.max(binarizers['user_act'].transform(user_acts), axis=0))
-            features.extend(np.max(binarizers['user_act_slots'].transform(user_acts_slots), axis=0))
-
-    # User goals
-    constraints = goal['constraints']
-    requests = goal['request-slots']
-    user_constraint_slots = ['empty'] if len(constraints) == 0 else [c[0] for c in constraints]
-    user_request_slots = ['empty'] if len(requests) == 0 else requests
-    features.extend(np.max(binarizers['user_request_slots'].transform(user_request_slots), axis=0))
-    features.extend(np.max(binarizers['user_constraint_slots'].transform(user_constraint_slots), axis=0))
-
-    if len(state['user_informed']) == 0:
-        state['user_informed'].add('empty')
-
-    if len(state['user_requested']) == 0:
-        state['user_requested'].add('empty')
-
-    # Not filled slots(from goals)
-    not_filled_constraints = [c[0] for c in constraints if c[0] not in state['user_informed']]
-    not_filled_requests = [c for c in requests if c not in state['user_requested']]
-    if len(not_filled_constraints)==0:
-        not_filled_constraints.append('empty')
-
-    if len(not_filled_requests) == 0:
-        not_filled_requests.append('empty')
-
-    features.extend(np.max(binarizers['user_constraint_slots'].transform(list(state['user_informed'])), axis=0))
-    features.extend(np.max(binarizers['user_request_slots'].transform(list(state['user_requested'])), axis=0))
-
-    features.extend(np.max(binarizers['user_constraint_slots'].transform(not_filled_constraints), axis=0))
-    features.extend(np.max(binarizers['user_request_slots'].transform(not_filled_requests), axis=0))
-
-    features.append(len(not_filled_constraints))
-    features.append(len(not_filled_requests))
-    features.append(len(not_filled_requests)+len(not_filled_constraints))
-
-    features = hstack(features)
-
-    user_acts = label_turns[i]['semantics']['json']
-    user_act_all = []
-    for act in user_acts:
-        first_slot_value = act['slots'][0][0] if len(act['slots']) > 0 else None
-        key = act['act'] + '_' + first_slot_value if len(act['slots']) > 0 else act['act']
-        user_act_all.append(key)
-
-        # What user already did(inform/request)
-        if first_slot_value is not None:
-            if act['act'] == 'inform' and first_slot_value in binarizers['user_constraint_slots'].classes_:
-                state['user_informed'].add(first_slot_value)
-            elif act['act'] == 'request' and first_slot_value in binarizers['user_request_slots'].classes_:
-                state['user_requested'].add(first_slot_value)
-
-    key = '__'.join(user_act_all) if len(user_act_all) > 0 else 'empty'
-    if 'bye' in key:
-        return None, None
-
-    return features, binarizers['user_act_all'].transform([key])[0]
+    pickle.dump(result, open('../bot/models/supervised_user_simulator_binarizers.p', 'wb'))
 
 
 def process_dialog(label_path):
@@ -215,11 +128,19 @@ def process_dialog(label_path):
 
     goal = fill_goal_from_label(label)
     state = defaultdict(set)
+    dstc_turns_to_triplets(label_turns, log_turns)
+
     for i in range(len(log_turns)):
-        x, y = create_features_for_turn(binarizers, goal, log_turns, label_turns, i, state)
-        if x is None or y is None:
+        x = create_features_for_turn(binarizers, goal, log_turns, label_turns, i, state)
+        if x is None:
             continue
 
+        user_act_all = fill_state(binarizers, state, goal, log_turns[i], label_turns[i])
+        key = '__'.join(user_act_all) if len(user_act_all) > 0 else 'empty'
+        if 'bye' in key:
+            continue
+
+        y = binarizers['user_act_all'].transform([key])[0]
         result_x.append(x)
         result_y.append(y)
 
@@ -269,7 +190,7 @@ def train():
         watchlist = [(d_train, 'train'), (d_valid, 'valid')]
 
         model = xgb.train(params, d_train, num_boost_round, watchlist, early_stopping_rounds=2, verbose_eval=10)
-        pickle.dump(model, open('supervised_user_simulator_model.p', 'wb'))
+        pickle.dump(model, open('../bot/models/supervised_user_simulator_model.p', 'wb'))
         #predicted = model.predict(d_valid)
         #result[test_index] = predicted
         break
@@ -282,24 +203,47 @@ def filter_all_acts(label_turns, log_turns):
     for i in range(len(log_turns)):
         log_turns[i]['output']['dialog-acts'] = sort_filter_acts(log_turns[i]['output']['dialog-acts'], False)
 
+def fill_state(binarizers, state, goal, agent_acts, user_acts):
+    # Agent action
+    for act in agent_acts:
+        if act[1] is not None:
+            if act[0] == 'inform' and act[1] in binarizers['user_constraint_slots'].classes_:
+                state['agent_inform'].add(act[1])
+
+    # User action
+    user_act_all = []
+    for act in user_acts:
+        key = act[0] + '_' + act[1] if act[1] is not None else act[0]
+        user_act_all.append(key)
+
+        # What user already did(inform/request)
+        if act[1] is not None:
+            if act[0] == 'inform' and act[1] in binarizers['user_constraint_slots'].classes_:
+                state['user_inform'].add(act[1])
+            elif act[0] == 'request' and act[1] in binarizers['user_request_slots'].classes_:
+                state['user_request'].add(act[1])
+            elif act[0] == 'dontcare':
+                if len(agent_acts) == 1 and agent_acts[0][0] == 'request':
+                    state['user_inform'].add(agent_acts[0][1])
+    return user_act_all
 
 def predict_for_dialog(label_path):
-    model = pickle.load(open('supervised_user_simulator_model.p', 'rb'))
+    model = pickle.load(open('../bot/models/supervised_user_simulator_model.p', 'rb'))
     label = json.load(open(label_path))
     log = json.load(open(label_path.replace('label', 'log')))
     log_turns = log['turns']
     label_turns = label['turns']
     filter_all_acts(label_turns, log_turns)
-    binarizers = pickle.load(open('supervised_user_simulator_binarizers.p', 'rb'))
+    binarizers = pickle.load(open('../bot/models/supervised_user_simulator_binarizers.p', 'rb'))
     goal = fill_goal_from_label(label)
     state = defaultdict(set)
-
+    dstc_turns_to_triplets(label_turns, log_turns)
     for i in range(len(log_turns)):
-        user_acts = label_turns[i]['semantics']['json']
-        x, y = create_features_for_turn(binarizers, goal, log_turns, label_turns, i, state)
+        x = create_features_for_turn(binarizers, goal, log_turns, label_turns, i, state)
+        fill_state(binarizers, state, goal, log_turns[i], label_turns[i])
         y_pred = model.predict(xgb.DMatrix(x.tocsc()))[0]
         y_pred_max = y_pred.argmax()
-        print('Turn = {} Real = {} Predicted = {}'.format(i, user_acts, binarizers['user_act_all'].classes_[y_pred_max]))
+        print('Turn = {} Real = {} Predicted = {}'.format(i, label_turns[i], binarizers['user_act_all'].classes_[y_pred_max]))
 
 
 def fill_goal_from_label(label):
@@ -324,6 +268,7 @@ def fill_goal_from_label(label):
 
     return goal
 
+
 def create_goals_file():
     all_goals = []
     for i, label_path in enumerate(glob.glob('../data/dstc2_traindev/**/label.json', recursive=True)):
@@ -336,9 +281,9 @@ def create_goals_file():
 
 
 
-#usersim_binarizers()
-process_all_dialogs()
-train()
+usersim_binarizers()
+#process_all_dialogs()
+#train()
 
 
 # result = process_dialog('..\data\dstc2_traindev\data\Mar13_S1A1\\voip-db80a9e6df-20130328_230811\\label.json')
