@@ -113,7 +113,14 @@ class NLUDataGenerator:
         return bio_slots, bio_acts, fill_slots
 
     def __next__(self):
-        batch = random.sample(self.templates, self.batch_size)
+        
+        size = np.min((len(self.templates), self.batch_size))
+        batch = random.sample(self.templates, size)
+        
+        while(len(batch)!=self.batch_size):
+            size = np.min((len(self.templates), self.batch_size-len(batch)))
+            batch.extend(random.sample(self.templates, size))
+
         filled_batch = []
         for nl, slot_arr, act_arr, fill_slots in batch:
             nl_arr = nl.split()
