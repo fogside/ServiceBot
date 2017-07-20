@@ -25,7 +25,7 @@ class DoubleDQN:
 
         self.kwargs = kwargs
 
-        self.hidden_size = kwargs.get('hidden_size', 10)
+        self.hidden_size = kwargs.get('hidden_size', 100)
         self.n_actions = kwargs.get('n_actions')
         self.n_features = kwargs.get('n_features')
         self.lr = kwargs.get('learning_rate', 0.1)

@@ -6,14 +6,11 @@ from dstc_helper import *
 from .dqn import DoubleDQN
 import numpy as np
 from collections import defaultdict
-import random
-import glob
-from usersims.sl_usersim import fill_goal_service_fields, update_goal_fields
 
 
 class RLAgent(Agent):
     def __init__(self,content_manager, path_to_model,
-                 path_to_dstc, binarizers, max_turn, need_sl=False, rounds=1, batch_size=32,
+                 path_to_dstc, binarizers, max_turn, rounds=1, batch_size=32,
                  send_to_user = None
                  ):
         super().__init__(content_manager)
@@ -33,75 +30,27 @@ class RLAgent(Agent):
                            replace_target_iter=10)
         self.agent_act_full_revers = {value: key for key,value in binarizers['agent_act_full'].items()}
 
-        if need_sl:
-            self.sl_train()
-
-    def sl_train(self):
-
-        for file_index, label_path in enumerate(glob.glob('{}/**/label.json'.format(self.path_to_dstc), recursive=True)):
-            self.initialize_episode()
-
-            if file_index > 0 and file_index % 10 == 0:
-                print('{} files processed'.format(file_index))
-
-            #if file_index>=500:
-                #break
-
-            label = json.load(open(label_path))
-            log = json.load(open(label_path.replace('label', 'log')))
-            log_turns = log['turns']
-            label_turns = label['turns']
-            dstc_turns_to_triplets(label_turns, log_turns)
-            goal = label['task-information']['goal']
-            add_alt_constraints(goal)
-            fill_goal_service_fields(goal)
-
-            dialog_results = []
-            valid_dialog = True
-            for i in range(len(log_turns)):
-                agent_acts = log_turns[i]
-                user_acts = label_turns[i]
-
-                s = self.state2vec()
-                self.update_state_agent(agent_acts)
-                update_goal_fields(agent_acts, goal, self.turn_count, self.max_turn)
-                r = self.reward(user_acts, goal)
-
-                self.update_state_user(user_acts)
-
-                s_ = self.state2vec()
-                a = self.action_index(agent_acts)
-                if a == -1:
-                    valid_dialog = False
-                    break
-
-                if self.turn_count>0:
-                    dialog_results.append(np.hstack([s, a, r, s_]))
-
-            if valid_dialog:
-                for r in dialog_results:
-                    self.model.store_transition(r)
-                    self.model.learn()
 
     def initialize_episode(self):
         super(RLAgent, self).initialize_episode()
         self.user_act_slot_dict = defaultdict(int)
         self.statevec_before = None
         self.debug_parts = []
+        self.total_reward = 0
 
     def update_state_agent(self, agent_actions, nl=None):
         self.statevec_before = self.state2vec()
         super(RLAgent, self).update_state_agent(agent_actions, nl)
 
-    def update_state_user(self, user_actions, nl=None, goal=None):
+    def update_state_user(self, user_actions, nl=None, user_state=None):
         super(RLAgent, self).update_state_user(user_actions, nl)
-        r = self.reward(user_actions, goal) if goal is not None else 0
+        r = self.reward(user_actions, user_state) if user_state is not None else 0
 
         for action, slot_name, slot_value in user_actions:
             act_slot = action + ('_' + slot_name if slot_name is not None else '')
             self.user_act_slot_dict[act_slot] += 1
 
-        if goal is None or self.turn_count==0:
+        if user_state is None or self.turn_count==0:
             return
 
         statevec_after = self.state2vec()
@@ -110,6 +59,7 @@ class RLAgent(Agent):
             self.send_to_user('Debug: ' + ' '.join(self.debug_parts))
 
         a = self.action_index(self.history[-1]['agent_action'])
+        self.total_reward += r
         self.model.store_transition(np.hstack([self.statevec_before, a, r, statevec_after]))
         self.model.learn()
         self.debug_parts = []
@@ -166,14 +116,15 @@ class RLAgent(Agent):
 
         return self.binarizers['agent_act_full'][act_slots]
 
-    def reward(self, user_actions, goal):
-        if goal['done']:
-            if goal['failed']:
-                return -80
-            return 80
+    def reward(self, user_actions, user_state):
+        if user_state['done']:
+            if user_state['failed']:
+                return -40
+            return 40
 
         result = 0
-        result += len(goal['current_filled_slots']) * 10
+        result += len(user_state['current_filled_slots']) * 10
+        result -= len(user_state['error_slots']) * 20
 
         #reqalts_exists = any([a[0] == 'reqalts' for a in user_actions])
         #if reqalts_exists:

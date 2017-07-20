@@ -14,14 +14,15 @@ nlu = NluPattern(settings.DSTC_PATH)
 binarizers = pickle.load(open(settings.SL_BINARIZERS_PATH, 'rb'))
 
 
-user = SupervisedUserSimulator(content_manager, nlg, settings.SL_US_MODEL_PATH, binarizers, settings.MAX_TURN)
+user = SupervisedUserSimulator(content_manager, nlg, settings.SL_US_MODEL_PATH, binarizers, settings.MAX_TURN,
+                               print_goal=True)
 #user = ConsoleUserSimulator(content_manager, nlg)
 agent = RLAgent(content_manager=content_manager, path_to_model=settings.RLAGENT_MODEL,
-                path_to_dstc=settings.DSTC_PATH, binarizers=binarizers, max_turn=settings.MAX_TURN, need_sl=False,
+                path_to_dstc=settings.DSTC_PATH, binarizers=binarizers, max_turn=settings.MAX_TURN,
                 send_to_user=user.send_to_user)
 
-agent = RuleAgent(content_manager)
+#agent = RuleAgent(content_manager)
 #agent = ConsoleAgent(content_manager)
 
-dialog_manager = DialogManager(agent, user, content_manager, nlu, print_every_n=1)
+dialog_manager = DialogManager(agent, user, content_manager, nlu, print_every_n=1, stats_every=10)
 dialog_manager.start()

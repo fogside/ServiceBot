@@ -3,11 +3,14 @@ import traceback
 from usersims import TelegramUserSimulator
 import logging
 import os
+import pandas as pd
 
 
 class DialogManager:
     """ A dialog manager to mediate the interaction between an agent and a customer """
-    def __init__(self, agent, user, content_manager, nlu, print_every_n=1):
+    def __init__(self, agent, user, content_manager, nlu, print_every_n=1, stats_every=None, max_turn = None):
+        self.max_turn = max_turn
+        self.stats_every = stats_every
         self.print_every_n = print_every_n
         self.nlu = nlu
         self.content_manager = content_manager
@@ -15,9 +18,26 @@ class DialogManager:
         self.agent = agent
         self.dialog_number = 0
         self.turn_number = 0
+        self.stats = []
         self.initialize_episode()
 
+    def collect_stats(self):
+        self.stats.append({'reward': self.agent.total_reward if hasattr(self.agent, 'total_reward') else -1, 'turn_count': self.agent.turn_count})
+
+    def print_stats(self):
+        print('---- Stats ---')
+        df = pd.DataFrame(self.stats)
+        print('Mean reward = {} Mean turn count = {}'.format(df['reward'].mean(), df['turn_count'].mean()))
+        print('---- End stats ---')
+        print()
+
     def initialize_episode(self):
+        if self.stats_every is not None:
+            self.collect_stats()
+            if self.dialog_number > 0 and self.dialog_number % self.stats_every == 0:
+                self.print_stats()
+                self.stats = []
+
         self.agent.initialize_episode()
         self.user.initialize_episode()
 
@@ -27,6 +47,7 @@ class DialogManager:
         else:
             self.user.print_dialog = True
 
+        self.turn_number = 0
         self.user.send_to_user('>'+str(self.dialog_number))
 
     def agent_action(self):
@@ -40,12 +61,12 @@ class DialogManager:
         if user_message is not None and user_actions is None:
             user_actions = self.nlu.parse_user_actions(user_message)
 
-        goal = None
-        if 'goal' in dir(self.user):
-            goal = self.user.goal
-        self.agent.update_state_user(user_actions, goal=goal)
+        state = None
+        if 'state' in dir(self.user):
+            state = self.user.state
+        self.agent.update_state_user(user_actions, user_state=state)
 
-        if 'bye' in [ua[0] for ua in user_actions]:
+        if 'bye' in [ua[0] for ua in user_actions] or (self.max_turn is not None and self.turn_number>=self.max_turn):
             self.initialize_episode()
 
     def next_turn(self, reverse=False):

@@ -41,7 +41,7 @@ class Agent:
         }
         self.history = []
 
-    def update_state_user(self, user_actions, nl=None, goal=None):
+    def update_state_user(self, user_actions, nl=None, user_state=None):
         """
         :param user_actions: list of triples: (agent action, slot_name, slot_value)
         :param nl: Natural language string from user
@@ -117,8 +117,12 @@ class Agent:
         return self.state['inform_slots']
 
     @property
-    def last_user_action(self):
+    def user_action(self):
         return self.history[-1]['user_action']
+
+    @property
+    def previous_action(self):
+        return self.history[-1]['agent_action'] if len(self.history) > 0 else None
 
 
 class EchoAgent(Agent):
@@ -168,7 +172,7 @@ class RuleAgent(Agent):
             return [['canthelp', 'pricerange',self.inform_slots['pricerange']]]
 
         valid_variant = variants[0]
-        if 'name' not in self.state['proposed_slots']:
+        if 'name' not in self.state['proposed_slots'] or self.previous_action[0][0]=='reqmore':
             return [
                 ['inform', 'food', valid_variant['food']],
                 ['inform', 'name', valid_variant['name']],

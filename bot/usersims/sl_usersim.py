@@ -7,39 +7,41 @@ from sklearn.preprocessing import normalize
 from usersims.usersim import UserSimulator
 
 
-def fill_goal_service_fields(goal):
-    goal['done'] = False
-    goal['failed'] = False
-    goal['current_filled_slots'] = []
-    goal['filled_slots'] = []
+def is_valid_restaurant(restaurant, goal):
+    for slot_name, slot_value in goal['constraints']:
+        if restaurant[slot_name]!= slot_value and slot_value!='dontcare':
+            if 'alt_constraints' in goal and restaurant[slot_name] == goal['alt_constraints'][1]:
+                continue
+            return False
+    return True
 
 
-def update_goal_fields(agent_actions, goal, turn_count, max_turn):
-    goal['current_filled_slots'] = []
+def update_state_agent(state, agent_actions, goal, restaurant_dict, turn_count, max_turn):
+    state['current_filled_slots'] =set()
+    state['error_slots'] = set()
 
     for action, slot_name, slot_value in agent_actions:
         if action != 'inform':
             continue
-        if slot_name in goal['filled_slots']:
+
+        if slot_name!='name':
             continue
 
-        valid = False
-        if slot_name in goal['request-slots']:
-            valid = True
+        restaurant = restaurant_dict[slot_value]
+        valid_restaurant = is_valid_restaurant(restaurant, goal)
+        if not valid_restaurant:
+            state['error_slots'].add('name')
 
-        for goal_slot_name, goal_slot_value in goal['constraints']:
-            if slot_name == goal_slot_name:
-                if goal_slot_value == 'dontcare' or goal_slot_value == slot_value:
-                    valid = True
-                    break
-                elif 'alt_constraints' in goal and slot_value == goal['alt_constraints'][1]:
-                    valid = True
-                    break
-        if not valid:
-            continue
+        for action2, slot_name2, slot_value2 in agent_actions:
+            if action2!='inform' or slot_name2=='name':
+                continue
 
-        goal['filled_slots'].append(slot_name)
-        goal['current_filled_slots'].append(slot_name)
+            if not valid_restaurant:
+                state['error_slots'].add(slot_name2)
+            else:
+                state['filled_slots'].add(slot_name2)
+                state['current_filled_slots'].add(slot_name2)
+
 
     done = False
     failed = False
@@ -50,23 +52,15 @@ def update_goal_fields(agent_actions, goal, turn_count, max_turn):
             failed = True
             break
 
-    if len(goal['filled_slots']) == len(goal['constraints']) + len(goal['request-slots']):
+    if len(state['filled_slots']) == len(goal['constraints']) + len(goal['request-slots']):
         done = True
         failed = False
     elif turn_count >= max_turn:
         done = True
         failed = True
 
-    goal['done'] = done
-    goal['failed'] = failed
-
-    # if turn_count>=1 and agent_actions[0][1]=='food':
-    #     goal['done'] = True
-    #     goal['failed'] = False
-    #
-    # if turn_count >= 1 and agent_actions[0][1] == 'area':
-    #     goal['done'] = True
-    #     goal['failed'] = True
+    state['done'] = done
+    state['failed'] = failed
 
 
 def create_features_for_turn(binarizers, goal, agent_actions, user_actions, i, state):
@@ -167,8 +161,9 @@ def create_features_for_turn(binarizers, goal, agent_actions, user_actions, i, s
 
 
 class SupervisedUserSimulator(UserSimulator):
-    def __init__(self, content_manager, nlg, model_path, binarizers, max_turn, print_dialog=True):
+    def __init__(self, content_manager, nlg, model_path, binarizers, max_turn, print_dialog=True, print_goal = False):
         super().__init__(content_manager, nlg)
+        self.print_goal = print_goal
         self.max_turn = max_turn
         self.print_dialog = print_dialog
         self.model = pickle.load(open(model_path, 'rb'))
@@ -176,13 +171,20 @@ class SupervisedUserSimulator(UserSimulator):
 
     def initialize_episode(self):
         self.goal = self.content_manager.random_goal()
-        fill_goal_service_fields(self.goal)
+
+        if self.print_goal:
+            self.send_to_user('Goal = ' + str(self.goal))
 
         self.state = {
             'user_inform': set(),
             'user_request': set(),
             'agent_inform': set(),
-            'no_data_requests': []
+            'no_data_requests': [],
+            'done': False,
+            'failed': False,
+            'current_filled_slots': set(),
+            'filled_slots': set(),
+            'error_slots': set()
         }
         self.history = []
 
@@ -228,7 +230,7 @@ class SupervisedUserSimulator(UserSimulator):
         if len(no_data_parts) > 0:
             self.state['no_data_requests'].append(no_data_parts)
 
-        update_goal_fields(agent_actions, self.goal, self.turn_count, self.max_turn)
+        update_state_agent(self.state, agent_actions, self.goal, self.content_manager.restaurant_dict_by_name, self.turn_count, self.max_turn)
 
     def _update_state_user(self, user_actions):
         for action, slot_name, slot_value in user_actions:
@@ -273,7 +275,13 @@ class SupervisedUserSimulator(UserSimulator):
             slot_value = None
             if action == 'inform' and slot_name is not None:
                 if slot_name != 'dontcare':
-                    slot_value = self.goal['constraints_dict'][slot_name] if slot_name in self.goal['constraints_dict'] else self.content_manager.random_slot_value(slot_name)
+                    if slot_name in self.goal['constraints_dict']:
+                        slot_value = self.goal['constraints_dict'][slot_name]
+                    else:
+                        action = 'dontcare'
+                        slot_name = None
+                        slot_value = None
+
                     if slot_name == 'food' and any('food' in d for d in self.state['no_data_requests']) and 'alt_constraints' in self.goal:
                         slot_value = self.goal['alt_constraints'][1]
 
@@ -285,7 +293,7 @@ class SupervisedUserSimulator(UserSimulator):
         if len(user_actions) == 0:
             user_actions = [['empty', None, None]]
 
-        if self.goal['done']:
+        if self.state['done']:
             user_actions = [['bye', None, None]]
 
         if self.print_dialog:

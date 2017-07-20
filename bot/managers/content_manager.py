@@ -9,12 +9,15 @@ import random
 
 
 class ContentManager:
-    def __init__(self, act_set, slot_set, restaurant_dict, goals, path_to_dstc, path_to_save, random_state):
+    def __init__(self, act_set, slot_set, restaurant_dict,
+                 goals, path_to_dstc, path_to_save, nlg_patterns, random_state):
+        self.nlg_patterns = nlg_patterns
         self.path_to_save = path_to_save
         self.path_to_dstc = path_to_dstc
         self.random_state = random_state
         self.goals = goals
         self.restaurant_dict = restaurant_dict
+        self.restaurant_dict_by_name = {value['name']: value for value in restaurant_dict.values()}
         self.slot_set = slot_set
         self.act_set = act_set
         self._make_cache_by_slot()
@@ -80,14 +83,15 @@ class ContentManager:
 
         json.dump(self._text_to_actions, open(self.path_to_save, 'w'))
 
-
     @staticmethod
     def from_settings(settings, random_state):
         act_set = set(open(settings.ACT_SET_PATH).readlines())
         slot_set = set(open(settings.SLOTS_SET_PATH).readlines())
         restaurant_dict = json.load(open(settings.RESTAURANT_PATH))
         goals = json.load(open(settings.GOALS_PATH))
-        return ContentManager(act_set, slot_set, restaurant_dict, goals, settings.DSTC_PATH, settings.CONTENT_MANAGER_SAVE_PATH, random_state)
+        nlg_patterns = json.load(open(settings.NLG_PATTERNS_PATH))
+        return ContentManager(act_set, slot_set, restaurant_dict, goals, settings.DSTC_PATH,
+                              settings.CONTENT_MANAGER_SAVE_PATH, nlg_patterns, random_state)
 
     def available_results(self, slots, restrictions):
         result = set(self.restaurant_dict.keys())

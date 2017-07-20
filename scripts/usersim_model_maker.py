@@ -203,6 +203,7 @@ def filter_all_acts(label_turns, log_turns):
     for i in range(len(log_turns)):
         log_turns[i]['output']['dialog-acts'] = sort_filter_acts(log_turns[i]['output']['dialog-acts'], False)
 
+
 def fill_state(binarizers, state, goal, agent_acts, user_acts):
     # Agent action
     for act in agent_acts:
