@@ -39,9 +39,10 @@ def update_state_agent(state, agent_actions, goal, restaurant_dict, turn_count, 
             if not valid_restaurant:
                 state['error_slots'].add(slot_name2)
             else:
-                state['filled_slots'].add(slot_name2)
-                state['current_filled_slots'].add(slot_name2)
+                if slot_name2 not in state['filled_slots'] and (slot_name2 in goal['constraints_dict'] or slot_name2 in goal['request-slots']):
+                    state['current_filled_slots'].add(slot_name2)
 
+                state['filled_slots'].add(slot_name2)
 
     done = False
     failed = False
@@ -168,6 +169,8 @@ class SupervisedUserSimulator(UserSimulator):
         self.print_dialog = print_dialog
         self.model = pickle.load(open(model_path, 'rb'))
         self.binarizers = binarizers
+        self.confirm_action_indexes = [value for key,value in self.binarizers['user_act_all_reverse'].items() if 'confirm' in key]
+        self.dontcare_indexes = [value for key, value in self.binarizers['user_act_all_reverse'].items() if 'dontcare' in key]
 
     def initialize_episode(self):
         self.goal = self.content_manager.random_goal()
@@ -238,6 +241,8 @@ class SupervisedUserSimulator(UserSimulator):
                 self.state['user_inform'].add(slot_name)
             elif action == 'request':
                 self.state['user_request'].add(slot_name)
+                if slot_name in self.state['filled_slots']:
+                    self.state['filled_slots'].remove(slot_name)
 
         self.history[-1]['user_action'] = user_actions
         self.history[-1]['state_user'] = deepcopy(self.state)
@@ -248,13 +253,46 @@ class SupervisedUserSimulator(UserSimulator):
         user_actions.append([])
 
         return create_features_for_turn(self.binarizers, self.goal, agent_actions, user_actions, self.turn_count, self.state)
+    
+    def action_index(self, user_action):
+        return self.binarizers['user_act_all_reverse'][user_action]
+    
+    def _not_logical_actions(self, pred):
+        if self.previous_action is not None:
+            if self.previous_action[0][0] == 'empty' and self.agent_action[0][0] == 'repeat':
+                pred[self.action_index('empty')] = 0
+
+        if self.agent_action[0][0] not in ['expl-conf', 'select']:
+            pred[self.action_index('affirm')] = 0
+
+        if self.agent_action[0][0] not in ['request']:
+            pred[self.confirm_action_indexes] = 0
+            pred[self.dontcare_indexes] = 0
+
+        if 'name' not in self.state['agent_inform']:
+            pred[self.action_index('reqalts')] = 0
+
+        if self.agent_action[0][0]=='expl-conf':
+            # If Right slot value - affirm, else - negate
+            action, slot_name, slot_value = self.agent_action[0]
+            if slot_name in self.goal['constraints_dict']:
+                if slot_value!=self.goal['constraints_dict'][slot_name]:
+                    pred[self.action_index('negate')] = pred[self.action_index('negate')] + pred[self.action_index('affirm')]
+                    pred[self.action_index('affirm')] = 0
+                else:
+                    pred[self.action_index('affirm')] = pred[self.action_index('negate')] + pred[self.action_index('affirm')]
+                    pred[self.action_index('negate')] = 0
+            else:
+                pred[self.action_index('dontcare')] = pred[self.action_index('negate')] + pred[self.action_index('affirm')]
+                pred[self.action_index('negate')] = 0
+                pred[self.action_index('affirm')] = 0
+
+        return normalize(pred.reshape((1, -1)), norm='l1')[0]
 
     def next(self):
         features = self.create_features_for_turn()
         pred = self.model.predict(xgb.DMatrix(features.tocsc()))[0]
-        if self.previous_action is not None and self.previous_action[0][0] == 'empty' and self.agent_action[0][0] == 'repeat':
-            pred[self.binarizers['user_act_all_reverse']['empty']] = 0
-            pred = normalize(pred, norm='l1')[0]
+        pred = self._not_logical_actions(pred)
 
         pred_index = self.content_manager.random_state.choice(list(range(pred.shape[0])), p=pred)
         pred_string = self.binarizers['user_act_all'].classes_[pred_index]
@@ -278,9 +316,14 @@ class SupervisedUserSimulator(UserSimulator):
                     if slot_name in self.goal['constraints_dict']:
                         slot_value = self.goal['constraints_dict'][slot_name]
                     else:
-                        action = 'dontcare'
-                        slot_name = None
-                        slot_value = None
+                        slot_value = 'dontcare'
+
+                    # if slot_name in self.goal['constraints_dict']:
+                    #     slot_value = self.goal['constraints_dict'][slot_name]
+                    # else:
+                    #     action = 'dontcare'
+                    #     slot_name = None
+                    #     slot_value = None
 
                     if slot_name == 'food' and any('food' in d for d in self.state['no_data_requests']) and 'alt_constraints' in self.goal:
                         slot_value = self.goal['alt_constraints'][1]

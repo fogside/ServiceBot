@@ -24,5 +24,5 @@ agent = RLAgent(content_manager=content_manager, path_to_model=settings.RLAGENT_
 #agent = RuleAgent(content_manager)
 #agent = ConsoleAgent(content_manager)
 
-dialog_manager = DialogManager(agent, user, content_manager, nlu, print_every_n=1, stats_every=10)
+dialog_manager = DialogManager(agent, user, content_manager, nlu, print_every_n=1, stats_every=50, max_turn=4)
 dialog_manager.start()

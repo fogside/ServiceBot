@@ -1,11 +1,5 @@
 """
 The double DQN based on this paper: https://arxiv.org/abs/1509.06461
-
-Based on: https://morvanzhou.github.io/tutorials/
-
-Using:
-Tensorflow: 1.0
-gym: 0.8.0
 """
 
 import numpy as np
@@ -25,22 +19,21 @@ class DoubleDQN:
 
         self.kwargs = kwargs
 
-        self.hidden_size = kwargs.get('hidden_size', 100)
         self.n_actions = kwargs.get('n_actions')
         self.n_features = kwargs.get('n_features')
-        self.lr = kwargs.get('learning_rate', 0.1)
-        self.gamma = kwargs.get('reward_decay', 0.999)
+        self.lr = kwargs.get('learning_rate', 0.01)
+        self.gamma = kwargs.get('reward_decay', 0.9)
         self.epsilon_max = kwargs.get('e_greedy', 0.9)
-        self.batch_size = kwargs.get('batch_size', 32)
+        self.batch_size = kwargs.get('batch_size', 128)
         self.memory_size = kwargs.get('memory_size')
-        self.epsilon_increment = kwargs.get('e_greedy_increment')
-        self.replace_target_iter = kwargs.get('replace_target_iter', 10)
-        self.epsilon = 0.9
+        self.epsilon_increment = kwargs.get('e_greedy_increment', 1e-4)
+        self.replace_target_iter = kwargs.get('replace_target_iter', 200)
+        self.epsilon = 0.5
         self.learn_step_counter = 0
         self.memory_counter = 0
         self.random_state = kwargs.get('random_state')
         
-        self.double_q = kwargs.get('double_q', True)    # decide to use double q or not
+        self.double_q = kwargs.get('double_q', False)    # decide to use double q or not
         self.memory = np.zeros((self.memory_size, self.n_features*2+2))
 
         sess = kwargs.get('sess')
@@ -55,27 +48,20 @@ class DoubleDQN:
         self.cost_his = []
 
     def _build_net(self):
-        def build_layers(s, c_names, n_l1, w_initializer, b_initializer):
-            with tf.variable_scope('l1'):
-                w1 = tf.get_variable('w1', [self.n_features, n_l1], initializer=w_initializer, collections=c_names)
-                b1 = tf.get_variable('b1', [1, n_l1], initializer=b_initializer, collections=c_names)
-                l1 = tf.nn.relu(tf.matmul(s, w1) + b1)
+        def build_layers(s, w_initializer, b_initializer):
+            dense = tf.layers.dense(inputs=s, units=200, activation=tf.nn.relu, kernel_initializer=w_initializer, bias_initializer=b_initializer)
+            dense = tf.layers.dense(inputs=dense, units=100, activation=tf.nn.relu, kernel_initializer=w_initializer, bias_initializer=b_initializer)
+            dense = tf.layers.dense(inputs=dense, units=self.n_actions, activation=tf.nn.relu, kernel_initializer=w_initializer, bias_initializer=b_initializer)
+            return dense
 
-            with tf.variable_scope('l2'):
-                w2 = tf.get_variable('w2', [n_l1, self.n_actions], initializer=w_initializer, collections=c_names)
-                b2 = tf.get_variable('b2', [1, self.n_actions], initializer=b_initializer, collections=c_names)
-                out = tf.matmul(l1, w2) + b2
-            return out
         # ------------------ build evaluate_net ------------------
         self.s = tf.placeholder(tf.float32, [None, self.n_features], name='s')  # input
         self.q_target = tf.placeholder(tf.float32, [None, self.n_actions], name='Q_target')  # for calculating loss
 
         with tf.variable_scope('eval_net'):
-            c_names, n_l1, w_initializer, b_initializer = \
-                ['eval_net_params', tf.GraphKeys.GLOBAL_VARIABLES], self.hidden_size, \
-                tf.random_normal_initializer(0., 0.3), tf.constant_initializer(0.1)  # config of layers
-
-            self.q_eval = build_layers(self.s, c_names, n_l1, w_initializer, b_initializer)
+            w_initializer = tf.random_normal_initializer(0., 0.3)
+            b_initializer = tf.constant_initializer(0.1)
+            self.q_eval = build_layers(self.s,w_initializer, b_initializer)
 
         with tf.variable_scope('loss'):
             self.loss = tf.reduce_mean(tf.squared_difference(self.q_target, self.q_eval))
@@ -85,9 +71,9 @@ class DoubleDQN:
         # ------------------ build target_net ------------------
         self.s_ = tf.placeholder(tf.float32, [None, self.n_features], name='s_')    # input
         with tf.variable_scope('target_net'):
-            c_names = ['target_net_params', tf.GraphKeys.GLOBAL_VARIABLES]
+            self.q_next = build_layers(self.s_, w_initializer, b_initializer)
 
-            self.q_next = build_layers(self.s_, c_names, n_l1, w_initializer, b_initializer)
+        self._init_replace_ops()
 
     def choose_action(self, observation, act_indexes_to_ignore):
         if len(observation.shape)!=2:
@@ -108,7 +94,7 @@ class DoubleDQN:
         was_random = False
         if self.random_state.uniform() > self.epsilon:  # choosing action
             action_probs = [1/(self.n_actions-len(act_indexes_to_ignore)) if i not in act_indexes_to_ignore else 0 for i in range(self.n_actions)]
-            action_probs = normalize(action_probs, norm='l1')[0]
+            action_probs = normalize(np.array(action_probs).reshape((1, -1)), norm='l1')[0]
             action = self.random_state.choice(list(range(self.n_actions)), p=action_probs)
             was_random = True
 
@@ -118,13 +104,31 @@ class DoubleDQN:
         index = self.memory_counter % self.memory_size
         self.memory[index, :] = transition.flatten()
         self.memory_counter += 1
+
+    def _init_replace_ops(self):
+        tau = 1
+        tfVars = tf.trainable_variables()
+        total_vars = len(tfVars)
+        op_holder = []
+        for idx, var in enumerate(tfVars[0:total_vars // 2]):
+            op_holder.append(tfVars[idx + total_vars // 2].assign((var.value() * tau) + ((1 - tau) * tfVars[idx + total_vars // 2].value())))
+        self.replace_ops = op_holder
         
     def _replace_target_params(self):
-        t_params = tf.get_collection('target_net_params')
-        e_params = tf.get_collection('eval_net_params')
-        self.sess.run([tf.assign(t, e) for t, e in zip(t_params, e_params)])
+        # t_params = tf.get_collection('target_net_params')
+        # e_params = tf.get_collection('eval_net_params')
+        # self.sess.run([tf.assign(t, e) for t, e in zip(t_params, e_params)])
+        for op in self.replace_ops:
+            self.sess.run(op)
 
         print('\ntarget_params_replaced\n')
+
+    def get_q_value(self, batch, action_indexes):
+        if len(batch.shape) != 2:
+            batch = batch[np.newaxis, :]
+
+        q_eval = self.sess.run(self.q_eval, feed_dict={self.s: batch})
+        return q_eval[0][action_indexes].mean()
 
     def learn(self):
         #if self.memory_counter<self.memory_size:
@@ -137,6 +141,8 @@ class DoubleDQN:
             sample_index = self.random_state.choice(self.memory_size, size=self.batch_size)
         else:
             sample_index = self.random_state.choice(self.memory_counter, size=self.batch_size)
+
+        sample_index = list(set(sample_index))
         batch_memory = self.memory[sample_index, :]
         
         q_next, q_eval4next = self.sess.run(
@@ -156,7 +162,7 @@ class DoubleDQN:
         else:
             selected_q_next = np.max(q_next, axis=1)    # the natural DQN
 
-        q_target[:, eval_act_index] = reward + self.gamma * selected_q_next
+        q_target[np.arange(q_target.shape[0]), eval_act_index] = reward + self.gamma * selected_q_next
 
         _, self.cost = self.sess.run([self._train_op, self.loss],
                                      feed_dict={self.s: batch_memory[:, :self.n_features],

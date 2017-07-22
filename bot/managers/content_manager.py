@@ -93,6 +93,13 @@ class ContentManager:
         return ContentManager(act_set, slot_set, restaurant_dict, goals, settings.DSTC_PATH,
                               settings.CONTENT_MANAGER_SAVE_PATH, nlg_patterns, random_state)
 
+    def explain_variation(self, variants):
+        keys = set()
+        for variant in variants:
+            key = variant['food'] + variant['area'] + variant['pricerange']
+            keys.add(key)
+        return len(keys)
+
     def available_results(self, slots, restrictions):
         result = set(self.restaurant_dict.keys())
         for slot_name, slot_value in slots.items():

@@ -17,7 +17,7 @@ class Agent:
 
         self.history.append({
             'agent_action': agent_actions,
-            #'agent_state': deepcopy(self.state),
+            'agent_state': deepcopy(self.state),
             'user_action': None,
             'agent_nl': nl,
             'user_nl': None

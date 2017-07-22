@@ -4,6 +4,7 @@ from usersims import TelegramUserSimulator
 import logging
 import os
 import pandas as pd
+import matplotlib.pyplot as plt
 
 
 class DialogManager:
@@ -19,6 +20,7 @@ class DialogManager:
         self.dialog_number = 0
         self.turn_number = 0
         self.stats = []
+        self.all_stat_points = []
         self.initialize_episode()
 
     def collect_stats(self):
@@ -27,9 +29,18 @@ class DialogManager:
     def print_stats(self):
         print('---- Stats ---')
         df = pd.DataFrame(self.stats)
-        print('Mean reward = {} Mean turn count = {}'.format(df['reward'].mean(), df['turn_count'].mean()))
+        print('Mean reward = {} Mean turn count = {}'.format(df['reward'].sum(), df['turn_count'].mean()))
         print('---- End stats ---')
         print()
+        self.all_stat_points.append({'reward': df['reward'].sum(), 'turn_count': df['turn_count'].mean(), 'dialog_number': self.dialog_number})
+        df = pd.DataFrame(self.all_stat_points).set_index('dialog_number')
+        ax = df.plot()
+        fig = ax.get_figure()
+        try:
+            fig.savefig('training.png')
+            plt.close(fig)
+        except Exception:
+            pass
 
     def initialize_episode(self):
         if self.stats_every is not None:
