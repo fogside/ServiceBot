@@ -21,8 +21,8 @@ class NLUDataGenerator:
         self.batch_size = batch_size
         self.dict = read_json(path_to_dict)  # for random choices and slot filling;
         self.slots = list(np.array(pd.read_csv(path_to_slot, sep='\n')).reshape(-1))
-        self.spec_no_slots = ['bye', 'hello', 'reqalts', 'doncare']  # all template is marked always;
-        self.spec_with_slots = ['affirm', 'negate']  # if there's no slots all template is marked;
+        self.spec_no_slots = ['bye', 'hello', 'reqalts', 'affirm']  # all template is marked always;
+        self.spec_with_slots = ['negate', 'doncare']  # if there's no slots all template is marked;
         templates = pd.read_csv(path_to_template).fillna(-1)
 
         self.templates = []  # for templates with blanks;
@@ -141,10 +141,14 @@ class NLUDataGenerator:
                     else:  # slot_arr[i] is B-smth
                         slot = slot_arr[i].split("-")[1]
                         act = act_arr[i].split("-")[1]
-                        if act == 'request':
+                        if (act == 'request') or (act == 'doncare'):
                             filler = random.choice(self.dict['requestable'][slot]).split()
                         else:
-                            filler = random.choice(self.dict['informable'][slot]).split()
+                            if slot in ['phone', 'addr']:
+                                filler = random.choice(self.dict['requestable'][slot]).split()
+                                print(nl, ' ', act)
+                            else:
+                                filler = random.choice(self.dict['informable'][slot]).split()
                         input_.append(filler[0])
                         target_slot.append(slot_arr[i])
                         target_acts.append(act_arr[i])
