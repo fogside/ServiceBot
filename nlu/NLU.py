@@ -31,8 +31,8 @@ class NLU_crf:
         sent_feats_slots = self.fGen.sent2features(tokens, for_acts=False)
         sent_feats_acts = self.fGen.sent2features(tokens, for_acts=True)
 
-        p_slots = self.slots_crf.predict([sent_feats_slots])[0]
-        p_acts = self.acts_crf.predict([sent_feats_acts])[0]
+        p_slots = self.slots_crf.predict_single(sent_feats_slots)
+        p_acts = self.acts_crf.predict_single(sent_feats_acts)
 
         ## debug:
         # print(p_slots)
@@ -43,7 +43,8 @@ class NLU_crf:
         for t, slot, act in zip(tokens, p_slots, p_acts):
             if act!='O':
                 t = None if act == 'request' else t
-                slot = None if slot == 'O' else slot
+                slot = None if slot == 'O' else slot.split('-')[1]
+                act = act.split('-')[1]  # remove B, I
                 triples.append([act, slot, t])
         return triples
 
