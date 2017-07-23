@@ -86,11 +86,14 @@ def usersim_binarizers():
         for c in requests:
             user_request_slots.add(c)
 
-    act_to_remove = ['', 'inform_name', 'inform_area__inform_name__inform_phone__inform_postcode']
+    act_to_remove = ['', 'inform_name', 'inform_area__inform_name__inform_phone__inform_postcode',
+                     'canthelp_pricerange', 'canthelp_area', 'canthelp_food'
+                     ]
     for act in act_to_remove:
         if act in agent_act_full:
             agent_act_full.remove(act)
 
+    agent_act_full.add('canthelp')
     user_act.remove('bye')
 
     result['agent_act'] = agent_act
@@ -122,7 +125,7 @@ def process_dialog(label_path):
     label_turns = label['turns']
     filter_all_acts(label_turns, log_turns)
 
-    binarizers = pickle.load(open('supervised_user_simulator_binarizers.p', 'rb'))
+    binarizers = pickle.load(open('../bot/models/supervised_user_simulator_binarizers.p', 'rb'))
     if len(label_turns) != len(log_turns):
         return result_x, result_y
 
@@ -266,6 +269,7 @@ def fill_goal_from_label(label):
 
     goal['constraints'] = [c for c in goal['constraints'] if c[0] in constraints]
     goal['request-slots'] = [c for c in goal['request-slots'] if c in requests]
+    goal['reqalts'] = 'ask if there is anything' in goal['text']
 
     return goal
 
@@ -279,8 +283,6 @@ def create_goals_file():
         all_goals.append(goal)
 
     json.dump(all_goals, open('../data/goals.json', 'w'))
-
-
 
 usersim_binarizers()
 #process_all_dialogs()

@@ -15,6 +15,9 @@ class NluPattern(Nlu):
         self.content_manager = content_manager
 
     def parse_user_actions(self, string):
+        if string.startswith('['):
+            return eval(string)
+
         string = string.strip()
         if string in self.content_manager.text_to_actions:
             return self.content_manager.text_to_actions[string]

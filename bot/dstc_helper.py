@@ -31,6 +31,12 @@ def dstc_turns_to_triplets(label_turns, log_turns):
                 action='dontcare'
                 slot_name = None
 
+            if action=='inform':
+                was_inform = True
+
+            if action=='reqalts':
+                was_reqalt = True
+
             actions.append([action, slot_name, slot_value])
 
         label_turns[i] = actions

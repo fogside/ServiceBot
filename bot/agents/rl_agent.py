@@ -16,11 +16,29 @@ class DebugSituation:
         self.agent = agent
         self.df = None
         inform_name_indexes = [agent.binarizers['agent_act_full'][n] for n in agent.inform_action_names]
+        request_food_index = [agent.binarizers['agent_act_full']['request_food']]
+        repeat_index = [agent.binarizers['agent_act_full']['repeat']]
+        reqmore_index = [agent.binarizers['agent_act_full']['reqmore']]
+
         self.situations = [
-            [self.inform_name_situation_ok, 'Inform name OK', inform_name_indexes, 0],
-            [self.inform_name_situation_wrong, 'Inform name Wrong', inform_name_indexes, 0],
+            #[self.inform_name_situation_ok, 'Inform name OK', inform_name_indexes, 0],
+           # [self.inform_name_situation_wrong, 'Inform name Wrong', inform_name_indexes, 0],
+            [self.request_food, 'Request food', request_food_index, 0],
+            [self.request_food, 'Inform name', inform_name_indexes, 0],
+            [self.request_food, 'Repeat', repeat_index, 0],
+            [self.request_food, 'Req more', reqmore_index, 0],
         ]
-        self.enabled = False
+
+    def request_food(self):
+        agent = self.agent
+        if agent.turn_count != 1:
+            return False
+
+        if len(agent.user_action)!=1 or agent.user_action[0][:2]!=['inform', 'pricerange']:
+            return False
+
+        return True
+
 
     def inform_name_situation_ok(self):
         agent = self.agent
@@ -37,7 +55,7 @@ class DebugSituation:
         return agent.statevec_before[-1]>20
 
     def add_point(self, reward):
-        if not self.enabled:
+        if len(self.situations)==0:
             return
 
         point = dict()
@@ -92,8 +110,7 @@ class RLAgent(Agent):
         #binarizers['agent_act_full'] = {'welcomemsg':0, 'inform_name__inform_postcode__inform_pricerange': 1}
         self.model = DoubleDQN.load(path_to_model) if os.path.exists(path_to_model) \
             else DoubleDQN(n_actions=len(binarizers['agent_act_full']), n_features=len(self.state2vec()),
-                           memory_size = 3000, batch_size=batch_size, random_state=content_manager.random_state,
-                           replace_target_iter=20)
+                           random_state=content_manager.random_state)
         self.agent_act_full_revers = {value: key for key,value in binarizers['agent_act_full'].items()}
         self.inform_action_names = [a for a in self.binarizers['agent_act_full'] if 'inform_name' in a]
         self.debug_situation = DebugSituation(self)
@@ -120,7 +137,7 @@ class RLAgent(Agent):
             act_slot = action + ('_' + slot_name if slot_name is not None else '')
             self.user_act_slot_dict[act_slot] += 1
 
-        if user_state is None or turn_count==0:
+        if user_state is None:
             return
 
         statevec_after = self.state2vec()
@@ -132,8 +149,9 @@ class RLAgent(Agent):
         self.total_reward += r
         self.debug_situation.add_point(r)
 
-        self.model.store_transition(np.hstack([self.statevec_before, a, r, statevec_after]))
-        self.model.learn()
+        if turn_count>0:
+            self.model.store_transition(np.hstack([self.statevec_before, a, r, statevec_after]))
+            self.model.learn()
         self.debug_parts = []
 
     def state2vec(self, variants = None):
@@ -141,33 +159,47 @@ class RLAgent(Agent):
             variants = self.content_manager.available_results(self.inform_slots, self.slot_restrictions)
 
         result = []
-        last_history = None
-        if len(self.history) > 0:
-            last_history = self.history[-1]
+        for i in range(1, 2):
+            history = self.history[-i] if len(self.history)>=i else None
 
-        last_user_actions = [] if last_history is None else last_history['user_action']
-        last_agent_actions = [] if last_history is None else last_history['agent_action']
+            last_user_actions = [] if history is None else history['user_action']
+            last_agent_actions = [] if history is None else history['agent_action']
 
-        user_acts = [[action for action, slot_name, slot_value in last_user_actions], 'user_act']
-        user_act_slots = [[action +('_'+slot_name if slot_name is not None else '') for action, slot_name, slot_value in last_user_actions], 'user_act_slots']
-        agent_acts = [[action for action, slot_name, slot_value in last_agent_actions], 'agent_act']
-        agent_act_slots = [[action +('_'+slot_name if slot_name is not None else '') for action, slot_name, slot_value in last_agent_actions], 'agent_act_slots']
+            user_acts = [[action for action, slot_name, slot_value in last_user_actions], 'user_act']
+            user_act_slots = [[action +('_'+slot_name if slot_name is not None else '') for action, slot_name, slot_value in last_user_actions], 'user_act_slots']
+            agent_acts = [[action for action, slot_name, slot_value in last_agent_actions], 'agent_act']
+            agent_act_slots = [[action +('_'+slot_name if slot_name is not None else '') for action, slot_name, slot_value in last_agent_actions], 'agent_act_slots']
+
+            for data, binarizer_name in [user_acts, user_act_slots, agent_acts, agent_act_slots]:
+                if len(data)==0:
+                    data.append('empty')
+                result.extend(np.max(self.binarizers[binarizer_name].transform(data), axis=0))
+
+            # Last agent action full
+            if i==1:
+                action_full = '__'.join(agent_act_slots[0])
+                action_full_features = list(range(len(self.binarizers['agent_act_full'])))
+                if action_full in self.binarizers['agent_act_full']:
+                    action_full_features[self.binarizers['agent_act_full'][action_full]] = 1
+
+                result.extend(action_full_features)
 
         constraint_slots = [list(self.inform_slots.keys()), 'user_constraint_slots']
         user_request_slots = [list(self.request_slots), 'user_request_slots']
         proposed_slots = [list(self.proposed_slots.keys()), 'all_slots']
         request_slots = [list(self.agent_request_slots), 'all_slots']
 
-        for data, binarizer_name in [user_acts, user_act_slots, constraint_slots, user_request_slots,
-                                     proposed_slots, request_slots, agent_acts, agent_act_slots]:
-            if len(data)==0:
+        for data, binarizer_name in [constraint_slots, user_request_slots,
+                                     proposed_slots, request_slots]:
+            if len(data) == 0:
                 data.append('empty')
             result.extend(np.max(self.binarizers[binarizer_name].transform(data), axis=0))
+            result.append(len(data))
 
-        turn_onehot_rep = np.zeros(self.max_turn)
-        turn_onehot_rep[min(self.turn_count, self.max_turn-1)] = 1.0
-
-        result.extend(turn_onehot_rep)
+        # turn_onehot_rep = np.zeros(self.max_turn)
+        # turn_onehot_rep[min(self.turn_count, self.max_turn-1)] = 1.0
+        #
+        # result.extend(turn_onehot_rep)
 
         variant_variation = self.content_manager.explain_variation(variants)
 
@@ -180,6 +212,9 @@ class RLAgent(Agent):
         act_slots = []
         for action, slot_name, slot_value in agent_actions:
             act_slot = action + ('_' + slot_name if slot_name is not None else '')
+            if 'canthelp' in act_slot:
+                act_slot = action
+
             act_slots.append(act_slot)
         act_slots = sorted(act_slots)
         if len(act_slots) > 3 and 'inform_pricerange' in act_slots:
@@ -200,18 +235,18 @@ class RLAgent(Agent):
     def reward(self, user_actions, user_state):
         if user_state['done']:
             if user_state['failed']:
-                return -40
-            return 30
+                return 0
+            return 0
 
         state_turn_begin = self.history[-1]['agent_state']
         user_requested_slot_failed = len([s for s in state_turn_begin['request_slots'] if s not in self.last_inform_slots()])>0 and 'name' in state_turn_begin['proposed_slots']
         result = 0
         result += len(user_state['current_filled_slots']) * 5
-        if user_requested_slot_failed and not self.was_random:
+        if user_requested_slot_failed:
             result = -5
             #print('user_requested_slot_failed')
 
-        result -= len(user_state['error_slots']) * 50
+        result -= len(user_state['error_slots']) * 20
 
         #reqalts_exists = any([a[0] == 'reqalts' for a in user_actions])
         #if reqalts_exists:
@@ -219,25 +254,50 @@ class RLAgent(Agent):
 
         for action, slot_name, slot_value in user_actions:
             act_slot = action + ('_' + slot_name if slot_name is not None else '')
-            result -= self.user_act_slot_dict[act_slot]
+            result -= self.user_act_slot_dict[act_slot]*2
 
         return result
 
     def not_valid_action_indexes(self, variants):
         result = []
-        informables = ['food', 'area', 'pricerange']
         actions_with_informable = ['canthelp', 'inform', 'expl-conf', 'select']
         for act_full, index in self.binarizers['agent_act_full'].items():
             if len(variants)==0 and 'inform_name' in act_full:
                 result.append(index)
                 continue
 
+            if 'select' in act_full:
+                result.append(index)
+                continue
+
+            if 'expl-conf' in act_full:
+                result.append(index)
+                continue
+
+            last_user_request = self.user_action_last_turn('request')
+            if last_user_request is not None:
+                if 'request' in act_full and 'name' in self.proposed_slots:
+                    result.append(index)
+                    continue
+
+                if 'inform_name' in act_full and 'inform_'+last_user_request[1] not in act_full:
+                    result.append(index)
+                    continue
+
             parts = act_full.split('__')
             for p in parts:
                 sub_parts = p.split('_')
                 action = sub_parts[0]
                 slot_name = None if len(sub_parts) == 1 else sub_parts[1]
-                if slot_name in informables and action in actions_with_informable and slot_name not in self.inform_slots:
+                if slot_name in self.content_manager.informable_slots and action in actions_with_informable and slot_name not in self.inform_slots:
+                    result.append(index)
+                    break
+
+                if len(variants)>0 and action=='canthelp':
+                    result.append(index)
+                    break
+
+                if action=='request' and slot_name in self.inform_slots:
                     result.append(index)
                     break
 
@@ -268,8 +328,21 @@ class RLAgent(Agent):
             else:
                 slot_value = self.inform_slots.get(slot_name, '' if slot_name is not None and action!='request' else None)
 
+            if action=='canthelp':
+                for slot in self.content_manager.informable_slots:
+                    inform_slots = self.inform_slots.copy()
+                    inform_slots[slot] = 'dontcare'
+                    _v = self.content_manager.available_results(inform_slots, self.slot_restrictions)
+                    if len(_v)>0:
+                        slot_name = slot
+                        slot_value = self.inform_slots[slot_name]
+                    break
+
+                if slot_name is None and len(self.inform_slots)>0:
+                    slot_name = list(self.inform_slots)[0]
+                    slot_value = self.inform_slots[slot_name]
+
             result.append([action, slot_name, slot_value])
 
-        self.last_action = result
         return result
 

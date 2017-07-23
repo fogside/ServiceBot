@@ -12,7 +12,7 @@ tf.set_random_seed(1)
 
 class DoubleDQN:
     def __init__(self,**kwargs):
-        required_parametrs = ['n_features', 'n_actions', 'memory_size', 'random_state']
+        required_parametrs = ['n_features', 'n_actions', 'random_state']
         for p in required_parametrs:
             if kwargs.get(p) is None:
                 raise Exception('No parametr {} given'.format(p))
@@ -23,17 +23,17 @@ class DoubleDQN:
         self.n_features = kwargs.get('n_features')
         self.lr = kwargs.get('learning_rate', 0.01)
         self.gamma = kwargs.get('reward_decay', 0.9)
-        self.epsilon_max = kwargs.get('e_greedy', 0.9)
-        self.batch_size = kwargs.get('batch_size', 128)
-        self.memory_size = kwargs.get('memory_size')
-        self.epsilon_increment = kwargs.get('e_greedy_increment', 1e-4)
-        self.replace_target_iter = kwargs.get('replace_target_iter', 200)
+        self.epsilon_max = kwargs.get('e_greedy', 1)
+        self.batch_size = kwargs.get('batch_size', 640)
+        self.memory_size = kwargs.get('memory_size', 10000)
+        self.epsilon_increment = kwargs.get('e_greedy_increment', 1e-2*2)
+        self.replace_target_iter = kwargs.get('replace_target_iter', 400)
         self.epsilon = 0.5
         self.learn_step_counter = 0
         self.memory_counter = 0
         self.random_state = kwargs.get('random_state')
         
-        self.double_q = kwargs.get('double_q', False)    # decide to use double q or not
+        self.double_q = kwargs.get('double_q', True)    # decide to use double q or not
         self.memory = np.zeros((self.memory_size, self.n_features*2+2))
 
         sess = kwargs.get('sess')
@@ -49,8 +49,9 @@ class DoubleDQN:
 
     def _build_net(self):
         def build_layers(s, w_initializer, b_initializer):
-            dense = tf.layers.dense(inputs=s, units=200, activation=tf.nn.relu, kernel_initializer=w_initializer, bias_initializer=b_initializer)
-            dense = tf.layers.dense(inputs=dense, units=100, activation=tf.nn.relu, kernel_initializer=w_initializer, bias_initializer=b_initializer)
+            dense = tf.layers.dense(inputs=s, units=80, activation=tf.nn.relu, kernel_initializer=w_initializer, bias_initializer=b_initializer)
+            #dense = tf.layers.dense(inputs=dense, units=150, activation=tf.nn.relu, kernel_initializer=w_initializer, bias_initializer=b_initializer)
+           # dense = tf.layers.dense(inputs=dense, units=100, activation=tf.nn.relu, kernel_initializer=w_initializer, bias_initializer=b_initializer)
             dense = tf.layers.dense(inputs=dense, units=self.n_actions, activation=tf.nn.relu, kernel_initializer=w_initializer, bias_initializer=b_initializer)
             return dense
 
@@ -84,12 +85,6 @@ class DoubleDQN:
             actions_value[0][i] = -10**3
 
         action = np.argmax(actions_value)
-
-        if not hasattr(self, 'q'):  # record action value it gets
-            self.q = []
-            self.running_q = 0
-        self.running_q = self.running_q*0.99 + 0.01 * np.max(actions_value)
-        self.q.append(self.running_q)
 
         was_random = False
         if self.random_state.uniform() > self.epsilon:  # choosing action
@@ -136,40 +131,40 @@ class DoubleDQN:
 
         if self.learn_step_counter % self.replace_target_iter == 0 and self.learn_step_counter>0:
             self._replace_target_params()
+            for i in range(10):
+                if self.memory_counter > self.memory_size:
+                    sample_index = self.random_state.choice(self.memory_size, size=self.batch_size)
+                else:
+                    sample_index = self.random_state.choice(self.memory_counter, size=self.batch_size)
 
-        if self.memory_counter > self.memory_size:
-            sample_index = self.random_state.choice(self.memory_size, size=self.batch_size)
-        else:
-            sample_index = self.random_state.choice(self.memory_counter, size=self.batch_size)
+                sample_index = list(set(sample_index))
+                batch_memory = self.memory[sample_index, :]
 
-        sample_index = list(set(sample_index))
-        batch_memory = self.memory[sample_index, :]
-        
-        q_next, q_eval4next = self.sess.run(
-            [self.q_next, self.q_eval],
-            feed_dict={self.s_: batch_memory[:, -self.n_features:],    # next observation
-                       self.s: batch_memory[:, -self.n_features:]})    # next observation
-        q_eval = self.sess.run(self.q_eval, {self.s: batch_memory[:, :self.n_features]})
+                q_next, q_eval4next = self.sess.run(
+                    [self.q_next, self.q_eval],
+                    feed_dict={self.s_: batch_memory[:, -self.n_features:],    # next observation
+                               self.s: batch_memory[:, -self.n_features:]})    # next observation
+                q_eval = self.sess.run(self.q_eval, {self.s: batch_memory[:, :self.n_features]})
 
-        q_target = q_eval.copy()
+                q_target = q_eval.copy()
 
-        eval_act_index = batch_memory[:, self.n_features].astype(int)
-        reward = batch_memory[:, self.n_features + 1]
+                eval_act_index = batch_memory[:, self.n_features].astype(int)
+                reward = batch_memory[:, self.n_features + 1]
 
-        if self.double_q:
-            max_act4next = np.argmax(q_eval4next, axis=1)        # the action that brings the highest value is evaluated by q_eval
-            selected_q_next = q_next[:, max_act4next]  # Double DQN, select q_next depending on above actions
-        else:
-            selected_q_next = np.max(q_next, axis=1)    # the natural DQN
+                if self.double_q:
+                    max_act4next = np.argmax(q_eval4next, axis=1)        # the action that brings the highest value is evaluated by q_eval
+                    selected_q_next = q_next[np.arange(q_target.shape[0]), max_act4next]  # Double DQN, select q_next depending on above actions
+                else:
+                    selected_q_next = np.max(q_next, axis=1)    # the natural DQN
 
-        q_target[np.arange(q_target.shape[0]), eval_act_index] = reward + self.gamma * selected_q_next
+                q_target[np.arange(q_target.shape[0]), eval_act_index] = reward + self.gamma * selected_q_next
 
-        _, self.cost = self.sess.run([self._train_op, self.loss],
-                                     feed_dict={self.s: batch_memory[:, :self.n_features],
-                                                self.q_target: q_target})
-        self.cost_his.append(self.cost)
+                _, self.cost = self.sess.run([self._train_op, self.loss],
+                                             feed_dict={self.s: batch_memory[:, :self.n_features],
+                                                        self.q_target: q_target})
+                self.cost_his.append(self.cost)
 
-        self.epsilon = self.epsilon + self.epsilon_increment if self.epsilon < self.epsilon_max else self.epsilon_max
+            self.epsilon = self.epsilon + self.epsilon_increment if self.epsilon < self.epsilon_max else self.epsilon_max
         self.learn_step_counter += 1
 
     def save(self, filepath):

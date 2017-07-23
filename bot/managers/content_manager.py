@@ -18,6 +18,7 @@ class ContentManager:
         self.goals = goals
         self.restaurant_dict = restaurant_dict
         self.restaurant_dict_by_name = {value['name']: value for value in restaurant_dict.values()}
+        self.informable_slots = ['food', 'pricerange', 'area']
         self.slot_set = slot_set
         self.act_set = act_set
         self._make_cache_by_slot()
@@ -45,8 +46,7 @@ class ContentManager:
                 self.cache_by_slot[slot_name][slot_value].add(key)
                 self.cache_by_slot[slot_name]['dontcare'].add(key)
 
-                if slot_name in ['area', 'postcode', 'addr', 'postcode']:
-                    self.possible_slot_values[slot_name].add(slot_value)
+                self.possible_slot_values[slot_name].add(slot_value)
 
         for goal in self.goals:
             for slot_name, slot_value in goal['constraints']:
@@ -117,5 +117,4 @@ class ContentManager:
 
     def random_goal(self):
         result = self.random_state.choice(self.goals)
-        result['constraints_dict'] = {key: value for key,value in result['constraints']}
         return result.copy()

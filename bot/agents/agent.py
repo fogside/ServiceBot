@@ -25,11 +25,12 @@ class Agent:
 
         for action, slot_name, slot_value in agent_actions:
             if action == 'request':
-                self.state['agent_request_slots'].append(slot_name)
+                self.state['agent_request_slots'].add(slot_name)
             elif action=='inform':
                 self.state['proposed_slots'][slot_name] = [slot_value, set()]
                 if slot_name in self.request_slots:
                     self.request_slots.remove(slot_name)
+
 
     def initialize_episode(self):
         """ Initialize a new episode (dialog), flush the current state and tracked slots """
@@ -37,7 +38,7 @@ class Agent:
             'inform_slots': dict(),
             'request_slots': set(),
             'proposed_slots': dict(),  # Значение: [значение слота, множество Negate + ReqAlts]
-            'agent_request_slots': [],
+            'agent_request_slots': set(),
         }
         self.history = []
 
@@ -54,11 +55,18 @@ class Agent:
         for action, slot_name, slot_value in user_actions:
             if action=='inform':
                 self.inform_slots[slot_name] = slot_value
-            elif action=='dontcare':
-                for slot in self.state['agent_request_slots']:
-                    self.inform_slots[slot] = 'dontcare'
+                if slot_name in self.state['agent_request_slots']:
+                    self.state['agent_request_slots'].remove(slot_name)
 
-                self.state['agent_request_slots'] = []
+            elif action=='dontcare':
+                if self.previous_action is not None:
+                    for action2, slot_name2, slot_value2 in self.previous_action:
+                        if action2=='request':
+                            self.inform_slots[slot_name2] = 'dontcare'
+                            if slot_name2 in self.agent_request_slots:
+                                self.agent_request_slots.remove(slot_name2)
+
+
             elif action=='request':
                 self.request_slots.add(slot_name)
             elif action=='reqalts':
@@ -69,7 +77,8 @@ class Agent:
                         continue
 
                     for action, slot_name, slot_value in history['agent_action']:
-                        if action=='inform':
+                        # now only by name
+                        if action=='inform' and slot_name=='name':
                             slot_for_reqalts = slot_name
                             slot_value_for_reqalts = slot_value
                             break
@@ -79,14 +88,14 @@ class Agent:
                 if slot_for_reqalts is not None and slot_for_reqalts in self.state['proposed_slots']:
                     self.state['proposed_slots'][slot_for_reqalts][1].add(slot_value_for_reqalts)
 
-    def was_user_action_last_turn(self, user_action):
-        if len(self.history)<2:
-            return False
-        for action, slot_name, slot_value in self.history[-2]['user_action']:
+    def user_action_last_turn(self, user_action, turn_before=1):
+        if len(self.history)<1:
+            return None
+        for action, slot_name, slot_value in self.history[-turn_before]['user_action']:
             if action== user_action:
-                return True
+                return [action, slot_name, slot_value]
 
-        return False
+        return None
 
     @property
     def turn_count(self):

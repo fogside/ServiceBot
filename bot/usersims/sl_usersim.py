@@ -41,8 +41,7 @@ def update_state_agent(state, agent_actions, goal, restaurant_dict, turn_count, 
             else:
                 if slot_name2 not in state['filled_slots'] and (slot_name2 in goal['constraints_dict'] or slot_name2 in goal['request-slots']):
                     state['current_filled_slots'].add(slot_name2)
-
-                state['filled_slots'].add(slot_name2)
+                    state['filled_slots'].add(slot_name2)
 
     done = False
     failed = False
@@ -124,6 +123,7 @@ def create_features_for_turn(binarizers, goal, agent_actions, user_actions, i, s
     user_request_slots = ['empty'] if len(requests) == 0 else requests
     features.extend(np.max(binarizers['user_request_slots'].transform(user_request_slots), axis=0))
     features.extend(np.max(binarizers['user_constraint_slots'].transform(user_constraint_slots), axis=0))
+    features.append(int(goal['reqalts']))
 
     user_inform = state['user_inform'].copy()
     user_request = state['user_request'].copy()
@@ -243,9 +243,12 @@ class SupervisedUserSimulator(UserSimulator):
                 self.state['user_request'].add(slot_name)
                 if slot_name in self.state['filled_slots']:
                     self.state['filled_slots'].remove(slot_name)
+            elif action == 'reqalts':
+                self.state['filled_slots'].clear()
 
         self.history[-1]['user_action'] = user_actions
         self.history[-1]['state_user'] = deepcopy(self.state)
+
 
     def create_features_for_turn(self):
         agent_actions = [h['agent_action'] for h in self.history if h['agent_action'] is not None]
@@ -318,14 +321,9 @@ class SupervisedUserSimulator(UserSimulator):
                     else:
                         slot_value = 'dontcare'
 
-                    # if slot_name in self.goal['constraints_dict']:
-                    #     slot_value = self.goal['constraints_dict'][slot_name]
-                    # else:
-                    #     action = 'dontcare'
-                    #     slot_name = None
-                    #     slot_value = None
-
                     if slot_name == 'food' and any('food' in d for d in self.state['no_data_requests']) and 'alt_constraints' in self.goal:
+                        slot_value = self.goal['alt_constraints'][1]
+                    elif 'reqalts' in pred_string and 'alt_constraints' in self.goal:
                         slot_value = self.goal['alt_constraints'][1]
 
                 else:
