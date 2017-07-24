@@ -244,7 +244,9 @@ class SupervisedUserSimulator(UserSimulator):
                 if slot_name in self.state['filled_slots']:
                     self.state['filled_slots'].remove(slot_name)
             elif action == 'reqalts':
-                self.state['filled_slots'].clear()
+                for key in list(self.state['filled_slots']):
+                    if key in self.goal['request-slots']:
+                        self.state['filled_slots'].remove(key)
 
         self.history[-1]['user_action'] = user_actions
         self.history[-1]['state_user'] = deepcopy(self.state)
@@ -323,7 +325,7 @@ class SupervisedUserSimulator(UserSimulator):
 
                     if slot_name == 'food' and any('food' in d for d in self.state['no_data_requests']) and 'alt_constraints' in self.goal:
                         slot_value = self.goal['alt_constraints'][1]
-                    elif 'reqalts' in pred_string and 'alt_constraints' in self.goal:
+                    elif 'reqalts' in pred_string and 'alt_constraints' in self.goal and slot_name=='food':
                         slot_value = self.goal['alt_constraints'][1]
 
                 else:
