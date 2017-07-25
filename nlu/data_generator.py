@@ -5,30 +5,36 @@ import copy
 import random
 from itertools import cycle
 
+
 def read_json(path):
     return json.load(open(path, 'r'))
 
+
 class NLUDataGenerator:
-    def __init__(self, path_to_template, path_to_dict, path_to_slot, ref_dict = None, batch_size=32, time_major = True, digitize = True, fs_model = None):
-
+    def __init__(self, path_to_template, path_to_ontology, ref_dict=None,
+                 batch_size=32, time_major=True, digitize=True):
         """
-        ref_dict -- it's dict that we want to complement in this particular run        
-
+        
+        :param path_to_template: 
+        :param path_to_ontology:
+        :param ref_dict: it's dict that we want to complement in this particular run
+        :param batch_size: 
+        :param time_major: 
+        :param digitize: if False, then sentences and classes wouldn't be encoded with numbers;
         """
+
         self.digitize = digitize
-        self.fs_model = fs_model
         self.time_major = time_major
         self.batch_size = batch_size
-        self.dict = read_json(path_to_dict)  # for random choices and slot filling;
-        self.slots = list(np.array(pd.read_csv(path_to_slot, sep='\n')).reshape(-1))
-        self.spec_no_slots = ['bye', 'hello', 'reqalts', 'affirm']  # all template is marked always;
-        self.spec_with_slots = ['negate', 'doncare']  # if there's no slots all template is marked;
+        self.dict = read_json(path_to_ontology)  # for random choices and slot filling;
+        self.spec_no_slots = ['bye', 'hello', 'reqalts', 'affirm', 'negate',
+                              'dontcare']  # all template is marked always;
         templates = pd.read_csv(path_to_template).fillna(-1)
 
         self.templates = []  # for templates with blanks;
         self.vocab = set()  # all the words in all templates;
-        self.slots_encode = set() # all slots
-        self.acts_encode = set() # all acts
+        self.slots_encode = set()  # all slots
+        self.acts_encode = set()  # all acts
 
         for index, row in templates.iterrows():
             user_line = row["nl"]
@@ -41,11 +47,11 @@ class NLUDataGenerator:
                 for filling in self.dict[type_][tag]:
                     for w in filling.split():  # Конечно, это вызывает вопросы, т.к имена будут явно разнесены(
                         self.vocab.add(w)
-      
+
         if ref_dict is not None:
             diff = self.vocab - set(ref_dict.keys())
             print("len(diff): ", len(diff))
-            self.vocab = copy.deepcopy(ref_dict) # add words to current dict
+            self.vocab = copy.deepcopy(ref_dict)  # add words to current dict
             tmp = dict(zip(diff, range(len(self.vocab), len(diff) + len(self.vocab))))
             print("tmp len: ", len(tmp))
             print("before: ", len(self.vocab))
@@ -53,13 +59,12 @@ class NLUDataGenerator:
             print("fin: ", len(self.vocab))
         else:
             self.vocab = dict(zip(self.vocab, range(1, len(self.vocab) + 1)))
-       
-        
-        self.slots_encode = dict(zip(self.slots_encode, range(2, len(self.slots_encode) + 2))) # + 'O'(other) + PAD(?)
-        self.acts_encode = dict(zip(self.acts_encode, range(2, len(self.acts_encode) + 2))) # + 'O'(other) + PAD(?)
+
+        self.slots_encode = dict(zip(self.slots_encode, range(2, len(self.slots_encode) + 2)))  # + 'O'(other) + PAD(?)
+        self.acts_encode = dict(zip(self.acts_encode, range(2, len(self.acts_encode) + 2)))  # + 'O'(other) + PAD(?)
 
         self.vocab["PAD"] = 0
-        
+
         for dic in [self.slots_encode, self.acts_encode]:
             dic["PAD"] = 0
             dic["O"] = 1
@@ -83,15 +88,15 @@ class NLUDataGenerator:
 
         # special case:
         if len(acts) == 1:
-            if (('$' not in template) and (acts[0] in self.spec_no_slots)) or \
-                    (('$' not in template) and (acts[0] in self.spec_with_slots)):
+            if ('$' not in template) and (acts[0] in self.spec_no_slots):
                 nl_len = len(template.split())
-                bio_slots.extend(['B-' + acts[0]] * nl_len)  # slots have the same value as act;
+                # bio_slots.extend(['B-' + acts[0]] * nl_len)  # slots have the same value as act;
+                bio_slots.extend(['O'] * nl_len)
                 bio_acts.extend(['B-' + acts[0]] * nl_len)
                 self.acts_encode.add('B-' + acts[0])
                 self.acts_encode.add('I-' + acts[0])
-                self.slots_encode.add('B-' + acts[0])
-                self.slots_encode.add('I-' + acts[0])
+                # self.slots_encode.add('B-' + acts[0])
+                # self.slots_encode.add('I-' + acts[0])
 
                 fill_slots = False
                 return bio_slots, bio_acts, fill_slots
@@ -113,12 +118,12 @@ class NLUDataGenerator:
         return bio_slots, bio_acts, fill_slots
 
     def __next__(self):
-        
+
         size = np.min((len(self.templates), self.batch_size))
         batch = random.sample(self.templates, size)
-        
-        while(len(batch)!=self.batch_size):
-            size = np.min((len(self.templates), self.batch_size-len(batch)))
+
+        while (len(batch) != self.batch_size):
+            size = np.min((len(self.templates), self.batch_size - len(batch)))
             batch.extend(random.sample(self.templates, size))
 
         filled_batch = []
@@ -141,7 +146,7 @@ class NLUDataGenerator:
                     else:  # slot_arr[i] is B-smth
                         slot = slot_arr[i].split("-")[1]
                         act = act_arr[i].split("-")[1]
-                        if (act == 'request') or (act == 'doncare'):
+                        if (act == 'request') or (act == 'dontcare_slot'):
                             filler = random.choice(self.dict['requestable'][slot]).split()
                         else:
                             if slot in ['phone', 'addr']:
@@ -158,17 +163,17 @@ class NLUDataGenerator:
 
                             input_.append(f)
             filled_batch.append((copy.deepcopy(input_), copy.deepcopy(target_slot), copy.deepcopy(target_acts)))
-        
+
         return self.digitize_batch(filled_batch)
-            
+
     def digitize_batch(self, batch):
 
-        max_size = max([len(item[0]) for item in batch])
-        targets_slots = np.zeros(shape=[self.batch_size, max_size], dtype=np.int32)  # == PAD
-        targets_acts = np.zeros(shape=[self.batch_size, max_size], dtype=np.int32)  # == PAD
-        actual_lengths = []
-        
         if self.digitize:
+            max_size = max([len(item[0]) for item in batch])
+            targets_slots = np.zeros(shape=[self.batch_size, max_size], dtype=np.int32)  # == PAD
+            targets_acts = np.zeros(shape=[self.batch_size, max_size], dtype=np.int32)  # == PAD
+            actual_lengths = []
+
             dseqs = np.zeros(shape=[self.batch_size, max_size], dtype=np.int32)  # == PAD
             for i, row in enumerate(batch):
                 actual_lengths.append(len(row[0]))
@@ -178,30 +183,32 @@ class NLUDataGenerator:
                     targets_acts[i, j] = self.acts_encode[elements[2]]
 
             if self.time_major:
-                dseqs = dseqs.swapaxes(0,1)
+                dseqs = dseqs.swapaxes(0, 1)
+            return dseqs, targets_slots, targets_acts, actual_lengths
+
         else:
-            dseqs = [b[0] for b in batch]
-            for i, row in enumerate(batch):
-                actual_lengths.append(len(row[0]))
-                for j, elements in enumerate(zip(row[0], row[1], row[2])):
-                    targets_slots[i, j] = self.slots_encode[elements[1]]
-                    targets_acts[i, j] = self.acts_encode[elements[2]]
-            
-        return dseqs, targets_slots, targets_acts, actual_lengths
-    
-    def vectorize(self, dseqs, max_size, embedd_size):
-        
+            seqs = [b[0] for b in batch]
+            slots = [b[1] for b in batch]
+            acts = [b[2] for b in batch]
+            return seqs, slots, acts
+
+    def vectorize(self, dseqs, max_size, embedd_size, fs_model):
         """
-        Expected array of arrays like: 
+        :param dseqs: Expected array of arrays like: 
         ['i', 'need', 'a', 'indonesian', 'restaurant', 'that', 'is', 'cheap', 'priced']
+        :param max_size: for shape of output mtx: shape=[self.batch_size, max_size, embedd_size]
+        :param embedd_size: for shape of output mtx: shape=[self.batch_size, max_size, embedd_size]
+        :param fs_model: trained fast text model
+        :return: matrix of embeddings
         
         """
-        dseqs_mtx = np.zeros(shape=[self.batch_size, max_size, embedd_size], dtype=np.float32)
+        batch_size = len(dseqs)
+        dseqs_mtx = np.zeros(shape=[batch_size, max_size, embedd_size], dtype=np.float32)
         for i, sent in enumerate(dseqs):
             for j, word in enumerate(sent):
-                dseqs_mtx[i,j] = self.fs_model[word]
+                dseqs_mtx[i, j] = fs_model[word]
         return dseqs_mtx
-    
+
     def decode_sentence(self, seq):
         """
         Expected array of digits

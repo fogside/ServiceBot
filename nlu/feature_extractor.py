@@ -23,18 +23,12 @@ def search_ontology_for_acts(word, act_ontology, req=True, thresh=80):
     else:
         matches = process.extractOne(word, act_ontology[name])
         if matches[1] > thresh:
-            # print("{} :acts match: {}".format(word, matches))
             return True
         else:
             return False
 
 
 def search_ontology_for_slots(word, slot_ontology, thresh=80):
-    """
-    
-    
-    """
-
     if len(word) < 4:
         return {}
 
@@ -42,8 +36,6 @@ def search_ontology_for_slots(word, slot_ontology, thresh=80):
     for key, arr in slot_ontology.items():
         val = process.extractOne(word, arr)
         matches[key] = 1 if val[1] > thresh else 0
-        # if matches[key] == 1:
-            # print("{} :slots match: {}".format(word, val))
 
     return matches
 
@@ -76,9 +68,6 @@ class FeatureGen:
             'word[-3:]': word[-3:],
             'word[-2:]': word[-2:],
             'word[:3]': word[:3],
-            'word.isupper()': word.isupper(),
-            'word.istitle()': word.istitle(),
-            'word.isdigit()': word.isdigit(),
         }
 
         if for_acts:
@@ -93,9 +82,8 @@ class FeatureGen:
             word1 = sent[i - 1]
             features.update({
                 '-1:word.lower()': word1.lower(),
-                '-1:word.istitle()': word1.istitle(),
-                '-1:word.isupper()': word1.isupper(),
                 '-1:word[-3:]': word1[-3:],
+                '-1:word[:3]': word1[:3],
             })
         else:
             features['BOS'] = True  # begin of sentence
@@ -103,9 +91,8 @@ class FeatureGen:
         if i < len(sent) - 1:
             word1 = sent[i + 1][0]
             features.update({
-                '+1:word.istitle()': word1.istitle(),
-                '+1:word.isupper()': word1.isupper(),
                 '+1:word[-3:]': word1[-3:],
+                '+1:word[:3]': word1[:3],
             })
 
         else:
@@ -128,10 +115,9 @@ class FeatureGen:
             sent = sent.split()
         return [self.word2features(sent, i, for_acts=for_acts) for i in range(len(sent))]
 
-    def batch2features(self, x_words, DataGen, for_acts=True):
+    def batch2features(self, x_words, for_acts=True):
 
         feats = []
-        for x_ in tqdm(x_words):
-            sent = DataGen.decode_sentence(x_)
+        for sent in tqdm(x_words):
             feats.append(self.sent2features(sent, for_acts=for_acts))
         return feats
