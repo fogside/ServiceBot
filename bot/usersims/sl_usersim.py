@@ -39,7 +39,8 @@ def update_state_agent(state, agent_actions, goal, restaurant_dict, turn_count, 
             if not valid_restaurant:
                 state['error_slots'].add(slot_name2)
             else:
-                if slot_name2 not in state['filled_slots'] and (slot_name2 in goal['constraints_dict'] or slot_name2 in goal['request-slots']):
+                if slot_name2 not in state['filled_slots'] and (slot_name2 in goal['constraints_dict']
+                                                                or slot_name2 in goal['request-slots']):
                     state['current_filled_slots'].add(slot_name2)
                     state['filled_slots'].add(slot_name2)
 
@@ -211,7 +212,7 @@ class SupervisedUserSimulator(UserSimulator):
         if self.print_dialog:
             print(message)
 
-    def inform_user(self, agent_actions):
+    def inform_person(self, agent_actions):
         self.send_to_user(self.agent_message(agent_actions))
 
         self._update_state_agent(agent_actions)

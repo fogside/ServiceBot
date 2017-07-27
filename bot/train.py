@@ -2,7 +2,7 @@ from usersims import *
 from agents import *
 from managers import *
 from nlg import *
-from nlu import *
+from nlu_dev import *
 import settings
 from numpy.random import RandomState
 import pickle
