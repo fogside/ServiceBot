@@ -26,7 +26,7 @@ class ContentManager:
 
     @property
     def text_to_actions(self):
-        if len(self._text_to_actions)==0:
+        if len(self._text_to_actions) == 0:
             self.init_text_to_actions()
 
         return self._text_to_actions
@@ -57,7 +57,8 @@ class ContentManager:
             self.possible_slot_values[key] = sorted(list(self.possible_slot_values[key]))
 
     def init_text_to_actions(self):
-        self._text_to_actions = json.load(open(self.path_to_save)) if os.path.exists(self.path_to_save) else defaultdict(list)
+        self._text_to_actions = json.load(open(self.path_to_save)) if os.path.exists(
+            self.path_to_save) else defaultdict(list)
         if len(self._text_to_actions) > 0:
             return
 
@@ -79,7 +80,7 @@ class ContentManager:
                 self._text_to_actions[text].append(actions)
 
         for key, value in self._text_to_actions.items():
-            self._text_to_actions[key] = random.choice(value)
+            self._text_to_actions[key] = self.random_state.choice(value)
 
         json.dump(self._text_to_actions, open(self.path_to_save, 'w'))
 
@@ -107,8 +108,8 @@ class ContentManager:
             if len(result) == 0:
                 break
         result = [self.restaurant_dict[r] for r in result]
-        if len(restrictions)>0:
-            for i in range(len(result)-1, -1, -1):
+        if len(restrictions) > 0:
+            for i in range(len(result) - 1, -1, -1):
                 for restr_key, restr_set in restrictions.items():
                     if result[i][restr_key] in restr_set:
                         del result[i]

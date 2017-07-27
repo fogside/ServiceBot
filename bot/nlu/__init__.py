@@ -1,1 +1,1 @@
-from .nlu_pattern import *
+from .NLU import *

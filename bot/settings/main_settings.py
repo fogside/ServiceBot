@@ -10,3 +10,6 @@ DSTC_PATH = BASE_DIR+'data/dstc2_traindev'
 CONTENT_MANAGER_SAVE_PATH = BASE_DIR+'data/content_manger_cached.json'
 NLG_PATTERNS_PATH = BASE_DIR+'data/nlg_patterns.json'
 MAX_TURN = 30
+MODEL_SLOTS_PATH = "models/crf_slots_new.model"
+MODEL_ACTS_PATH = "models/crf_acts_new.model"
+ONTOLOGY_PATH = BASE_DIR +"data/ontology_new.json"

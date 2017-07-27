@@ -15,23 +15,15 @@ class Agent:
         :param nl: Natural language string from agent
         """
 
-        self.history.append({
-            'agent_action': agent_actions,
-            'agent_state': deepcopy(self.state),
-            'user_action': None,
-            'agent_nl': nl,
-            'user_nl': None
-        })
+        self.history[-1].update({'agent_action': agent_actions, 'agent_nl': nl})
 
         for action, slot_name, slot_value in agent_actions:
             if action == 'request':
                 self.state['agent_request_slots'].add(slot_name)
-            elif action=='inform':
-                self.state['proposed_slots'][slot_name] = [slot_value, set()]
+            elif action == 'inform':
+                self.proposed_slots[slot_name] = [slot_value, set()]
                 if slot_name in self.request_slots:
                     self.request_slots.remove(slot_name)
-
-
 
     def initialize_episode(self):
         """ Initialize a new episode (dialog), flush the current state and tracked slots """
@@ -45,32 +37,37 @@ class Agent:
 
     def update_state_user(self, user_actions, nl=None, user_state=None):
         """
+        update request/inform/proposed slots according to what user just said
+        
         :param user_actions: list of triples: (agent action, slot_name, slot_value)
         :param nl: Natural language string from user
+        :param user_state: if user keeps its state then it will be used here
+        :return: 
+        
         """
-
-        self.history[-1]['user_action'] = user_actions
-        self.history[-1]['user_nl'] = nl
-
         # updating state
         for action, slot_name, slot_value in user_actions:
-            if action=='inform':
+            if action == 'inform':
                 self.inform_slots[slot_name] = slot_value
                 if slot_name in self.state['agent_request_slots']:
                     self.state['agent_request_slots'].remove(slot_name)
 
-            elif action=='dontcare':
+            elif action == 'dontcare':
                 if self.previous_action is not None:
                     for action2, slot_name2, slot_value2 in self.previous_action:
-                        if action2=='request':
+                        if action2 == 'request':
                             self.inform_slots[slot_name2] = 'dontcare'
                             if slot_name2 in self.agent_request_slots:
                                 self.agent_request_slots.remove(slot_name2)
 
 
-            elif action=='request':
+            elif action == 'request':
                 self.request_slots.add(slot_name)
-            elif action=='reqalts':
+
+            elif action == 'negate_slot':
+                pass
+
+            elif action == 'reqalts':
                 slot_for_reqalts = None
                 slot_value_for_reqalts = None
                 for history in reversed(self.history):
@@ -79,21 +76,30 @@ class Agent:
 
                     for action, slot_name, slot_value in history['agent_action']:
                         # now only by name
-                        if action=='inform' and slot_name=='name':
+                        if action == 'inform' and slot_name == 'name':
                             slot_for_reqalts = slot_name
                             slot_value_for_reqalts = slot_value
                             break
                     if slot_for_reqalts is not None:
                         break
 
-                if slot_for_reqalts is not None and slot_for_reqalts in self.state['proposed_slots']:
-                    self.state['proposed_slots'][slot_for_reqalts][1].add(slot_value_for_reqalts)
+                if slot_for_reqalts is not None and slot_for_reqalts in self.proposed_slots:
+                    self.proposed_slots[slot_for_reqalts][1].add(slot_value_for_reqalts)
+
+            # add to history:
+            self.history.append({
+                'agent_action': None,
+                'agent_state': deepcopy(self.state),
+                'user_action': user_actions,
+                'agent_nl': None,
+                'user_nl': nl
+            })
 
     def user_action_last_turn(self, user_action, turn_before=1):
-        if len(self.history)<1:
+        if len(self.history) < 1:
             return None
         for action, slot_name, slot_value in self.history[-turn_before]['user_action']:
-            if action== user_action:
+            if action == user_action:
                 return [action, slot_name, slot_value]
 
         return None
@@ -108,7 +114,7 @@ class Agent:
 
     @property
     def slot_restrictions(self):
-        return {key:value[1] for key,value in self.proposed_slots.items() if len(value[1])>0}
+        return {key: value[1] for key, value in self.proposed_slots.items() if len(value[1]) > 0}
 
     @property
     def request_slots(self):
@@ -162,27 +168,36 @@ class RuleAgent(Agent):
         self.required_slots = ['food', 'area', 'pricerange']
 
     def next(self):
+        """
+        This method just choose what agent should do in this turn;
+        
+        :return: agent_acts like: 
+            ['request', slot, None] or ['inform', 'food', valid_variant['food']]
+        """
+
         if self.turn_count == 0:
             return [['welcomemsg', None, None]]
 
         for slot in self.required_slots:
-            if slot not in self.inform_slots and slot not in self.state['request_slots'] and slot not in self.inform_slots:
+            if slot not in self.inform_slots and slot not in self.request_slots:
                 return [['request', slot, None]]
 
         variants = self.content_manager.available_results(self.inform_slots, self.slot_restrictions)
-        if len(variants)==0:
-            variants = self.content_manager.available_results({'food': self.inform_slots['food']}, self.slot_restrictions)
-            if len(variants)==0:
+        if len(variants) == 0:
+            variants = self.content_manager.available_results({'food': self.inform_slots['food']},
+                                                              self.slot_restrictions)
+            if len(variants) == 0:
                 return [['canthelp', 'food', self.inform_slots['food']]]
 
-            variants = self.content_manager.available_results({'food': self.inform_slots['food'], 'area': self.inform_slots['area']}, self.slot_restrictions)
+            variants = self.content_manager.available_results(
+                {'food': self.inform_slots['food'], 'area': self.inform_slots['area']}, self.slot_restrictions)
             if len(variants) == 0:
                 return [['canthelp', 'area', self.inform_slots['area']]]
 
-            return [['canthelp', 'pricerange',self.inform_slots['pricerange']]]
+            return [['canthelp', 'pricerange', self.inform_slots['pricerange']]]
 
-        valid_variant = variants[0]
-        if 'name' not in self.state['proposed_slots'] or self.previous_action[0][0]=='reqmore':
+        valid_variant = variants[0]  # just choose the first variant from knowledge base search:)
+        if 'name' not in self.proposed_slots or self.previous_action[0][0] == 'reqmore':
             return [
                 ['inform', 'food', valid_variant['food']],
                 ['inform', 'name', valid_variant['name']],
@@ -216,5 +231,3 @@ class RuleAgent(Agent):
         return [
             ['reqmore', None, None]
         ]
-
-

@@ -1,5 +1,6 @@
-from feature_extractor import FeatureGen
+from .feature_extractor import FeatureGen
 import joblib as jb
+import sys
 import re
 
 
@@ -11,7 +12,8 @@ class NLU_crf:
         self.no_slots_acts = set(('affirm', 'reqalts', 'bye', 'hello', 'dontcare', 'negate'))
         self.req_acts = ['request', 'dontcare_slot']  # when the value is not important and transformed to None
 
-    def make_clean_tokens(self, sent):
+    @staticmethod
+    def make_clean_tokens(sent):
         """
         :param sent: it's a string like: "I dont;#$% 5675 like cucumbers!"
         :return: clean tokens like: ['I', 'dont', 'like', 'cucumbers']
@@ -19,7 +21,7 @@ class NLU_crf:
         """
         return re.findall(r'[^\s!,.?"%$#:;0-9]+', sent)
 
-    def make_triples_for_sent(self, sent):
+    def parse_user_actions(self, sent):
         """
         :param sent: it's a string
         :return: triples like these:
@@ -40,7 +42,8 @@ class NLU_crf:
         act = list(set([p[2:] for p in p_acts]) & self.no_slots_acts)
 
         if len(act) == 1:
-            return [act[0], None, None]
+            print("act: ", act[0])
+            return [[act[0], None, None]]
 
         prev_slot = ''
         for t, slot, act in zip(tokens, p_slots, p_acts):
@@ -54,11 +57,16 @@ class NLU_crf:
                 prev_slot = slot
 
         if len(triples) == 0:
+            print("empty")
             triples.append(['empty', None, None])
             return triples
         else:
-            return [[act[2:], slot[2:], t] if act[2:] not in self.req_acts else [act[2:], slot[2:], None]
-                    for act, slot, t in triples]
+            # remove I-, B-:
+            triples = [[act[2:], slot[2:], t] if act[2:] not in self.req_acts
+                       else [act[2:], slot[2:], None] for act, slot, t in triples]
+            print("triples: ", triples)
+            sys.stdout.flush()
+            return triples
 
 
 if __name__ == "__main__":
@@ -97,6 +105,6 @@ if __name__ == "__main__":
 
     for s in sents:
         print("test_sent: ", s)
-        triples = nlu.make_triples_for_sent(s)
+        triples = nlu.parse_user_actions(s)
         print(triples)
         print('-------')

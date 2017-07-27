@@ -6,8 +6,8 @@ class UserSimulator:
     def send_to_user(self, message):
         pass
 
-    def inform_user(self, agent_actions):
-        self.send_to_user(self.agent_message(agent_actions))
+    def inform_person(self, agent_actions):
+        self.send_to_user(self.agent_message_nl(agent_actions))
 
     def next(self):
         pass
@@ -15,7 +15,7 @@ class UserSimulator:
     def initialize_episode(self):
         pass
 
-    def agent_message(self, agent_actions):
+    def agent_message_nl(self, agent_actions):
         return self.nlg.agent_action_nl(agent_actions)
 
 
@@ -31,7 +31,6 @@ class EchoUserSimulator(UserSimulator):
         print(answer)
         return None, answer
 
-
 class ConsoleUserSimulator(UserSimulator):
     def send_to_user(self, message):
         print(message)
@@ -39,7 +38,6 @@ class ConsoleUserSimulator(UserSimulator):
     def next(self):
         answer = input()
         return None, answer
-
 
 class TelegramUserSimulator(UserSimulator):
     def __init__(self, content_manager, nlg, update):

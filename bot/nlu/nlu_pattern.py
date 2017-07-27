@@ -5,10 +5,10 @@ from dstc_helper import dstc_turns_to_triplets
 import random
 import os
 
+
 class Nlu:
     def parse_user_actions(self, string):
         pass
-
 
 class NluPattern(Nlu):
     def __init__(self, content_manager):

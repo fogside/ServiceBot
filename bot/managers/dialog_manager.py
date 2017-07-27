@@ -9,7 +9,8 @@ import matplotlib.pyplot as plt
 
 class DialogManager:
     """ A dialog manager to mediate the interaction between an agent and a customer """
-    def __init__(self, agent, user, content_manager, nlu, print_every_n=1, stats_every=None, max_turn = None):
+
+    def __init__(self, agent, user, content_manager, nlu, print_every_n=1, stats_every=None, max_turn=None):
         self.max_turn = max_turn
         self.stats_every = stats_every
         self.print_every_n = print_every_n
@@ -24,7 +25,8 @@ class DialogManager:
         self.initialize_episode()
 
     def collect_stats(self):
-        self.stats.append({'reward': self.agent.total_reward if hasattr(self.agent, 'total_reward') else -1, 'turn_count': self.agent.turn_count})
+        self.stats.append({'reward': self.agent.total_reward if hasattr(self.agent, 'total_reward') else -1,
+                           'turn_count': self.agent.turn_count})
 
     def print_stats(self):
         print('---- Stats ---')
@@ -32,7 +34,8 @@ class DialogManager:
         print('Mean reward = {} Mean turn count = {}'.format(df['reward'].sum(), df['turn_count'].mean()))
         print('---- End stats ---')
         print()
-        self.all_stat_points.append({'reward': df['reward'].sum(), 'turn_count': df['turn_count'].mean(), 'dialog_number': self.dialog_number})
+        self.all_stat_points.append(
+            {'reward': df['reward'].sum(), 'turn_count': df['turn_count'].mean(), 'dialog_number': self.dialog_number})
         df = pd.DataFrame(self.all_stat_points).set_index('dialog_number')
         ax = df.plot()
         fig = ax.get_figure()
@@ -53,41 +56,40 @@ class DialogManager:
         self.user.initialize_episode()
 
         self.dialog_number += 1
-        if self.dialog_number%self.print_every_n!=0:
+        if self.dialog_number % self.print_every_n != 0:
             self.user.print_dialog = False
         else:
             self.user.print_dialog = True
 
         self.turn_number = 0
-        self.user.send_to_user('>'+str(self.dialog_number))
+        self.user.send_to_user('>' + str(self.dialog_number))
 
-    def agent_action(self):
-        self.agent_actions = self.agent.next()
-        self.agent.update_state_agent(self.agent_actions)
-
-        self.user.inform_user(self.agent_actions)
+    def agent_action(self, user_acts):
+        self.agent.update_state_user(user_acts)
+        agent_actions = self.agent.next()
+        self.agent.update_state_agent(agent_actions)
+        return agent_actions
 
     def user_action(self):
         user_actions, user_message = self.user.next()
         if user_message is not None and user_actions is None:
             user_actions = self.nlu.parse_user_actions(user_message)
 
-        state = None
-        if 'state' in dir(self.user):
-            state = self.user.state
-        self.agent.update_state_user(user_actions, user_state=state)
+        # Checking if user object contains state field and use it
+        # state = None
+        # if 'state' in dir(self.user):
+        #     state = self.user.state
 
-        if 'bye' in [ua[0] for ua in user_actions] or (self.max_turn is not None and self.turn_number>=self.max_turn):
+        if 'bye' in [ua[0] for ua in user_actions] or \
+                (self.max_turn is not None and self.turn_number >= self.max_turn):
             self.initialize_episode()
+        return user_actions
 
-    def next_turn(self, reverse=False):
-        if reverse:
-            self.user_action()
-            self.agent_action()
-        else:
-            self.agent_action()
-            self.user_action()
+    def next_turn(self):
 
+        user_acts = self.user_action()
+        agent_acts = self.agent_action(user_acts)
+        self.user.inform_person(agent_acts)  # sent msg to real person
         self.turn_number += 1
 
     def start(self):
