@@ -52,9 +52,6 @@ class NLU_crf:
                     triples.append([act, slot, t])
 
                 prev_slot = slot
-                # t = None if (act == 'request') else t
-                # slot = None if slot == 'O' else slot.split('-')[1]
-                # act = act.split('-')[1]  # remove B, I
 
         if len(triples) == 0:
             triples.append(['empty', None, None])
