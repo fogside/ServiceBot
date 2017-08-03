@@ -19,19 +19,21 @@ class Agent:
 
         for action, slot_name, slot_value in agent_actions:
             if action == 'request':
-                self.state['agent_request_slots'].add(slot_name)
+                self.agent_request_slots.add(slot_name)
             elif action == 'inform':
+                # set() in proposed_slots is for negated or reqalted values of slot, used in slot_restrictions;
                 self.proposed_slots[slot_name] = [slot_value, set()]
+                # if slot_name was requested by user then remove it
                 if slot_name in self.request_slots:
                     self.request_slots.remove(slot_name)
 
     def initialize_episode(self):
         """ Initialize a new episode (dialog), flush the current state and tracked slots """
         self.state = {
-            'inform_slots': dict(),
-            'request_slots': set(),
+            'inform_slots': dict(),  # what user inform about just now
+            'request_slots': set(),  # what user asks now
             'proposed_slots': dict(),  # Значение: [значение слота, множество Negate + ReqAlts]
-            'agent_request_slots': set(),
+            'agent_request_slots': set(),  # what agent requested about
         }
         self.history = []
 
@@ -52,21 +54,42 @@ class Agent:
                 if slot_name in self.state['agent_request_slots']:
                     self.state['agent_request_slots'].remove(slot_name)
 
-            elif action == 'dontcare':
+            elif (action == 'dontcare') or (action == 'negate'):
                 if self.previous_action is not None:
                     for action2, slot_name2, slot_value2 in self.previous_action:
-                        if action2 == 'request':
+                        if (action2 == 'request') and (action == 'dontcare'):
+                            print("previous action was request")
                             self.inform_slots[slot_name2] = 'dontcare'
                             if slot_name2 in self.agent_request_slots:
+                                print('slot {} has been removed from agent_request_slots'.format(slot_name2))
                                 self.agent_request_slots.remove(slot_name2)
+                        if (action2 == 'inform') and (action == 'negate'):
+                            print("previous action was inform")
+                            # add slot_value to restrictions
+                            self.proposed_slots[slot_name2][1].add(slot_value2)
+                elif (action == 'dontcare'
+                      ):
+                    print('here?')
+                    # that means the beggining of a dialog
+                    slot_ = list(self.agent_request_slots)[0] if len(self.agent_request_slots)>0 else None
+                    if slot_ is not None:
+                        print('slot {} has been removed from agent_request_slots'.format(slot_))
+                        self.agent_request_slots.remove(slot_)
+                        self.inform_slots[slot_] = 'dontcare'
 
+            elif action == 'negate_slot':
+                # add slot_value to restrictions
+                if slot_name in self.proposed_slots:
+                    self.proposed_slots[slot_name][1].add(slot_value)
+                else:
+                    self.proposed_slots[slot_name] = [None, set(slot_value)]
+                if slot_name in self.inform_slots:
+                    del self.inform_slots[slot_name]
 
             elif action == 'request':
                 self.request_slots.add(slot_name)
 
-            elif action == 'negate_slot':
-                pass
-
+            # TODO: fix behavior for reqalts
             elif action == 'reqalts':
                 slot_for_reqalts = None
                 slot_value_for_reqalts = None
@@ -83,12 +106,13 @@ class Agent:
                     if slot_for_reqalts is not None:
                         break
 
+                # add to restrictions this slot:
                 if slot_for_reqalts is not None and slot_for_reqalts in self.proposed_slots:
                     self.proposed_slots[slot_for_reqalts][1].add(slot_value_for_reqalts)
 
             # add to history:
             self.history.append({
-                'agent_action': None,
+                'agent_action': self.history[-1]['agent_action'] if len(self.history) > 0 else None,
                 'agent_state': deepcopy(self.state),
                 'user_action': user_actions,
                 'agent_nl': None,
@@ -175,8 +199,10 @@ class RuleAgent(Agent):
             ['request', slot, None] or ['inform', 'food', valid_variant['food']]
         """
 
-        if self.turn_count == 0:
-            return [['welcomemsg', None, None]]
+        print(">>> user act: ", self.user_action)
+
+        # if self.turn_count == 1:
+        #     return [['welcomemsg', None, None]]
 
         for slot in self.required_slots:
             if slot not in self.inform_slots and slot not in self.request_slots:
@@ -226,6 +252,13 @@ class RuleAgent(Agent):
             return [
                 ['inform', 'name', valid_variant['name']],
                 ['inform', 'postcode', valid_variant['postcode']]
+            ]
+
+        if 'reqalts' in self.user_action:
+            return [
+                ['inform', 'food', valid_variant['food']],
+                ['inform', 'name', valid_variant['name']],
+                ['inform', 'pricerange', valid_variant['pricerange']]
             ]
 
         return [

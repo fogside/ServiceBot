@@ -93,6 +93,7 @@ class DialogManager:
         self.turn_number += 1
 
     def start(self):
+        print("Hello! I can help you to find restaurant by area, price range and food type.\nPlease, type me you preferences.")
         while True:
             self.next_turn()
 
