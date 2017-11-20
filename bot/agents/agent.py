@@ -27,11 +27,10 @@ class Agent:
             if action == 'request':
                 self.state['agent_request_slots'].add(slot_name)
             elif action=='inform':
+                #self.state['proposed_slots'][slot_name] = [slot_value, self.state['proposed_slots'].get(slot_name, [set(),set()])[1]]
                 self.state['proposed_slots'][slot_name] = [slot_value, set()]
                 if slot_name in self.request_slots:
                     self.request_slots.remove(slot_name)
-
-
 
     def initialize_episode(self):
         """ Initialize a new episode (dialog), flush the current state and tracked slots """
@@ -66,7 +65,6 @@ class Agent:
                             self.inform_slots[slot_name2] = 'dontcare'
                             if slot_name2 in self.agent_request_slots:
                                 self.agent_request_slots.remove(slot_name2)
-
 
             elif action=='request':
                 self.request_slots.add(slot_name)

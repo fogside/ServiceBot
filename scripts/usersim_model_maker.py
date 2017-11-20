@@ -209,27 +209,46 @@ def filter_all_acts(label_turns, log_turns):
 
 def fill_state(binarizers, state, goal, agent_acts, user_acts):
     # Agent action
+    agent_act_all = []
     for act in agent_acts:
+        key = act[0] + '_' + act[1] if act[1] is not None else act[0]
+        if act[0]=='canthelp':
+            key = 'canthelp'
+
+        agent_act_all.append(key)
+
         if act[1] is not None:
-            if act[0] == 'inform' and act[1] in binarizers['user_constraint_slots'].classes_:
-                state['agent_inform'].add(act[1])
+            if act[0] == 'inform' and act[1]:
+                state['proposed_slots'][act[1]] = [act[2], set()]
+            elif act[0] == 'request' and act[1]:
+                state['agent_request_slots'].add(act[1])
 
     # User action
-    user_act_all = []
     for act in user_acts:
-        key = act[0] + '_' + act[1] if act[1] is not None else act[0]
-        user_act_all.append(key)
-
         # What user already did(inform/request)
         if act[1] is not None:
             if act[0] == 'inform' and act[1] in binarizers['user_constraint_slots'].classes_:
-                state['user_inform'].add(act[1])
+                state['inform_slots'][act[1]] = act[2]
             elif act[0] == 'request' and act[1] in binarizers['user_request_slots'].classes_:
-                state['user_request'].add(act[1])
+                state['request_slots'].add(act[1])
             elif act[0] == 'dontcare':
                 if len(agent_acts) == 1 and agent_acts[0][0] == 'request':
-                    state['user_inform'].add(agent_acts[0][1])
-    return user_act_all
+                    state['inform_slots'][agent_acts[0][1]] = 'dontcare'
+
+    if len(agent_act_all)>3 and 'inform_name' in agent_act_all:
+        for i in range(len(agent_act_all)-1, -1, -1):
+            if agent_act_all[i]!='inform_name':
+                del agent_act_all[i]
+                break
+
+    if agent_act_all == ['inform_name']:
+        if 'food' in state['inform_slots']:
+            agent_act_all.insert(0, 'inform_food')
+        elif 'area' in state['inform_slots']:
+            agent_act_all.insert(0, 'inform_area')
+
+    return agent_act_all
+
 
 def predict_for_dialog(label_path):
     model = pickle.load(open('../bot/models/supervised_user_simulator_model.p', 'rb'))
@@ -284,17 +303,18 @@ def create_goals_file():
 
     json.dump(all_goals, open('../data/goals.json', 'w'))
 
-usersim_binarizers()
-#process_all_dialogs()
-#train()
+if  __name__=="__main__":
+    usersim_binarizers()
+    #process_all_dialogs()
+    #train()
 
 
-# result = process_dialog('..\data\dstc2_traindev\data\Mar13_S1A1\\voip-db80a9e6df-20130328_230811\\label.json')
-#predict_for_dialog('..\data\dstc2_traindev\data\Mar13_S1A1\\voip-db80a9e6df-20130328_230811\\label.json')
-#predict_for_dialog('..\data\dstc2_traindev\data\Mar13_S0A0\\voip-14cb91bc48-20130328_161626\\label.json')
-#predict_for_dialog('..\data\dstc2_traindev\data\Mar13_S1A1\\voip-e0035cc31b-20130323_211354\\label.json')
-#predict_for_dialog('..\data\dstc2_traindev\data\Mar13_S0A0\\voip-ad40cf5489-20130325_181825\\label.json')
-#predict_for_dialog('..\data\dstc2_traindev\data\Mar13_S1A1\\voip-e54437a6f0-20130325_133942\\label.json')
-#predict_for_dialog('..\data\dstc2_traindev\data\Mar13_S0A1\\voip-597cfafdee-20130328_231524\\label.json')# Empty первым действием у юзера
+    # result = process_dialog('..\data\dstc2_traindev\data\Mar13_S1A1\\voip-db80a9e6df-20130328_230811\\label.json')
+    #predict_for_dialog('..\data\dstc2_traindev\data\Mar13_S1A1\\voip-db80a9e6df-20130328_230811\\label.json')
+    #predict_for_dialog('..\data\dstc2_traindev\data\Mar13_S0A0\\voip-14cb91bc48-20130328_161626\\label.json')
+    #predict_for_dialog('..\data\dstc2_traindev\data\Mar13_S1A1\\voip-e0035cc31b-20130323_211354\\label.json')
+    #predict_for_dialog('..\data\dstc2_traindev\data\Mar13_S0A0\\voip-ad40cf5489-20130325_181825\\label.json')
+    #predict_for_dialog('..\data\dstc2_traindev\data\Mar13_S1A1\\voip-e54437a6f0-20130325_133942\\label.json')
+    #predict_for_dialog('..\data\dstc2_traindev\data\Mar13_S0A1\\voip-597cfafdee-20130328_231524\\label.json')# Empty первым действием у юзера
 
 

@@ -56,6 +56,13 @@ class ContentManager:
             self.possible_slot_values[key].add('dontcare')
             self.possible_slot_values[key] = sorted(list(self.possible_slot_values[key]))
 
+    def valid_rest_for_constraints(self, rest, constraints):
+        for key, value in constraints.items():
+            if rest.get(key)!=value:
+                return False
+
+        return True
+
     def init_text_to_actions(self):
         self._text_to_actions = json.load(open(self.path_to_save)) if os.path.exists(self.path_to_save) else defaultdict(list)
         if len(self._text_to_actions) > 0:
@@ -110,7 +117,7 @@ class ContentManager:
         if len(restrictions)>0:
             for i in range(len(result)-1, -1, -1):
                 for restr_key, restr_set in restrictions.items():
-                    if result[i][restr_key] in restr_set:
+                    if result[i][restr_key][1] in restr_set:
                         del result[i]
                         break
         return result

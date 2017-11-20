@@ -9,4 +9,9 @@ RLAGENT_MODEL = 'models/rlagent_model.p'
 DSTC_PATH = BASE_DIR+'data/dstc2_traindev'
 CONTENT_MANAGER_SAVE_PATH = BASE_DIR+'data/content_manger_cached.json'
 NLG_PATTERNS_PATH = BASE_DIR+'data/nlg_patterns.json'
+SL_AGENT_MODEL_PATH = BASE_DIR+'scripts/sl_agent.cat'
+NLU_ACTON_MODEL_PATH = 'models/crf_acts_new.model'
+NLU_SLOT_MODEL_PATH = 'models/crf_slots_new.model'
+ONTOLOGY_PATH = BASE_DIR + 'data/ontology_new.json'
+
 MAX_TURN = 30
